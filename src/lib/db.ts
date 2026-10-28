@@ -1,0 +1,98 @@
+import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+
+const SCHEMA_VERSION = 1;
+
+const SCHEMA = `
+CREATE TABLE leads (
+  id TEXT PRIMARY KEY,
+  playbook TEXT NOT NULL,
+  status TEXT NOT NULL,
+  name TEXT,
+  title TEXT,
+  company TEXT,
+  domain TEXT,
+  email TEXT UNIQUE,
+  linkedin_url TEXT UNIQUE,
+  source TEXT,
+  research TEXT,
+  reason TEXT,
+  evidence TEXT,
+  step INTEGER NOT NULL DEFAULT 0,
+  next_due_at TEXT,
+  defer_until TEXT,
+  defer_reason TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (email IS NOT NULL OR linkedin_url IS NOT NULL)
+);
+CREATE INDEX leads_playbook_status ON leads (playbook, status);
+CREATE INDEX leads_domain ON leads (domain);
+
+CREATE TABLE attempts (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL REFERENCES leads (id),
+  playbook TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  step INTEGER,
+  channel TEXT NOT NULL,
+  status TEXT NOT NULL,
+  subject TEXT,
+  body TEXT NOT NULL,
+  reserved_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  completed_at TEXT,
+  external_id TEXT,
+  thread_id TEXT,
+  evidence TEXT
+);
+CREATE UNIQUE INDEX attempts_one_open_per_lead ON attempts (lead_id)
+  WHERE status IN ('reserved', 'drafted', 'uncertain');
+CREATE INDEX attempts_playbook_reserved ON attempts (playbook, reserved_at);
+
+CREATE TABLE events (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL REFERENCES leads (id),
+  type TEXT NOT NULL,
+  body TEXT,
+  external_id TEXT,
+  occurred_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (lead_id, external_id)
+);
+
+CREATE TABLE suppressions (
+  kind TEXT NOT NULL,
+  value TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (kind, value)
+);
+`;
+
+export function openLedger(path: string): Database {
+  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+  const db = new Database(path, { create: true, strict: true });
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;");
+  const row = db.query<{ user_version: number }, []>("PRAGMA user_version").get();
+  const version = row?.user_version ?? 0;
+  if (version > SCHEMA_VERSION) {
+    throw new Error(`Ledger schema ${version} is newer than this ostack (${SCHEMA_VERSION}). Run "ostack upgrade".`);
+  }
+  if (version === 0) {
+    db.transaction(() => {
+      db.exec(SCHEMA);
+      db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    })();
+  }
+  return db;
+}
+
+export function newId(prefix: string): string {
+  return `${prefix}_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`;
+}
+
+export function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}

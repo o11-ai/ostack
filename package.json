@@ -1,0 +1,21 @@
+{
+  "name": "ostack",
+  "version": "0.1.0",
+  "description": "Open-source GTM skills for coding agents, starting with configurable cold outbound.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "ostack": "./bin/ostack"
+  },
+  "scripts": {
+    "ostack": "bun run src/cli.ts",
+    "test": "bun test ./tests"
+  },
+  "engines": {
+    "bun": ">=1.2.21"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.21"
+  }
+}

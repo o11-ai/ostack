@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# Installs ostack skills for your coding agents and puts the `ostack` CLI on your PATH.
+# Everything is a symlink into this checkout, so `ostack upgrade` (git pull) updates all of it.
+#
+#   ./setup                     install for Claude Code
+#   ./setup --host codex        install for one agent (claude, codex, cursor, gemini)
+#   ./setup --host auto         install for every agent found on this machine
+#   ./setup --status            show what is installed where
+#   ./setup --uninstall         remove every link this checkout created
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="${OSTACK_BIN_DIR:-$HOME/.local/bin}"
+MIN_BUN="1.2.21"
+ALL_HOSTS=(claude codex cursor gemini)
+
+host_dir() {
+  case "$1" in
+    claude) echo "$HOME/.claude/skills" ;;
+    codex) echo "$HOME/.codex/skills" ;;
+    cursor) echo "$HOME/.cursor/skills" ;;
+    gemini) echo "$HOME/.gemini/skills" ;;
+    *) echo "unknown host: $1 (use claude, codex, cursor, gemini or auto)" >&2; exit 1 ;;
+  esac
+}
+
+host_present() { [ -d "$(dirname "$(host_dir "$1")")" ]; }
+
+skills() { for dir in "$ROOT"/skills/*/; do basename "$dir"; done; }
+
+version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
+
+check_bun() {
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "ostack needs Bun $MIN_BUN or newer: https://bun.sh" >&2
+    exit 1
+  fi
+  local version
+  version="$(bun --version)"
+  if ! version_ge "$version" "$MIN_BUN"; then
+    echo "ostack needs Bun $MIN_BUN or newer (found $version). Run: bun upgrade" >&2
+    exit 1
+  fi
+}
+
+link_host() {
+  local host="$1" dir name target
+  dir="$(host_dir "$host")"
+  mkdir -p "$dir"
+  for name in $(skills); do
+    target="$dir/$name"
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
+      echo "  skip $target (a real folder is already there)" >&2
+      continue
+    fi
+    ln -sfn "$ROOT/skills/$name" "$target"
+  done
+  echo "  $host: $(skills | tr '\n' ' ')-> $dir"
+}
+
+link_cli() {
+  mkdir -p "$BIN_DIR"
+  chmod +x "$ROOT/bin/ostack" "$ROOT/setup"
+  ln -sfn "$ROOT/bin/ostack" "$BIN_DIR/ostack"
+  case ":$PATH:" in
+    *":$BIN_DIR:"*) echo "  cli: $BIN_DIR/ostack" ;;
+    *) echo "  cli: $BIN_DIR/ostack (add $BIN_DIR to your PATH)" ;;
+  esac
+}
+
+is_ours() { [ -L "$1" ] && case "$(readlink "$1")" in "$ROOT"/*) true ;; *) false ;; esac; }
+
+status() {
+  local host dir name
+  for host in "${ALL_HOSTS[@]}"; do
+    dir="$(host_dir "$host")"
+    for name in $(skills); do
+      if is_ours "$dir/$name"; then echo "$host  $name  installed  $dir/$name"; fi
+    done
+  done
+  if is_ours "$BIN_DIR/ostack"; then echo "cli     ostack  installed  $BIN_DIR/ostack"; fi
+}
+
+uninstall() {
+  local host dir name
+  for host in "${ALL_HOSTS[@]}"; do
+    dir="$(host_dir "$host")"
+    for name in $(skills); do
+      if is_ours "$dir/$name"; then rm "$dir/$name" && echo "  removed $dir/$name"; fi
+    done
+  done
+  if is_ours "$BIN_DIR/ostack"; then rm "$BIN_DIR/ostack" && echo "  removed $BIN_DIR/ostack"; fi
+  echo "Workspaces and ledgers were left alone."
+}
+
+# Re-links hosts that already have ostack, so new skills appear after an upgrade.
+relink() {
+  local host
+  for host in "${ALL_HOSTS[@]}"; do
+    if is_ours "$(host_dir "$host")/cold-outbound"; then link_host "$host"; fi
+  done
+  link_cli
+}
+
+HOSTS=()
+ACTION=install
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --host)
+      [ $# -ge 2 ] || { echo "--host needs a value" >&2; exit 1; }
+      if [ "$2" = auto ]; then
+        for host in "${ALL_HOSTS[@]}"; do host_present "$host" && HOSTS+=("$host"); done
+      else
+        host_dir "$2" >/dev/null
+        HOSTS+=("$2")
+      fi
+      shift 2 ;;
+    --status) ACTION=status; shift ;;
+    --uninstall) ACTION=uninstall; shift ;;
+    --relink) ACTION=relink; shift ;;
+    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+case "$ACTION" in
+  status) status; exit 0 ;;
+  uninstall) uninstall; exit 0 ;;
+  relink) check_bun; relink; exit 0 ;;
+esac
+
+check_bun
+[ ${#HOSTS[@]} -gt 0 ] || HOSTS=(claude)
+echo "Installing ostack from $ROOT"
+for host in "${HOSTS[@]}"; do link_host "$host"; done
+link_cli
+cat <<EOF
+
+Next:
+  mkdir my-gtm && cd my-gtm
+  ostack init --from b2b-founders     # or: ostack templates
+  then ask your agent: "set up my outbound playbook" (runs the ostack-setup skill)
+EOF
