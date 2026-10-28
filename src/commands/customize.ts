@@ -19,7 +19,12 @@ export async function contextCommand(args: Args): Promise<void> {
   const id = args.positionals[1];
   if (id) {
     const step = steps.find((item) => item.id === id);
-    if (!step) throw new OstackError("unknown_step", `No step named "${id}".`, { steps: steps.map((item) => item.id) });
+    if (!step) {
+      // A general note, such as `ostack context about`, in every layer that has one.
+      const named = (await generalNotes(workspace, campaign, steps)).filter((note) => note.file === `${id}.md`);
+      if (named.length > 0) return print({ campaign, note: id, notes: named });
+      throw new OstackError("unknown_step", `No step or general note named "${id}".`, { steps: steps.map((item) => item.id) });
+    }
     print({ campaign, ...(await stepContext(workspace, campaign, step, steps)) });
     return;
   }
@@ -31,6 +36,7 @@ export async function contextCommand(args: Args): Promise<void> {
     campaign,
     mode: workspace.state.mode,
     limits: workspace.state.limits,
+    follow_up_days: workspace.state.follow_up_days,
     packs: workspace.state.packs,
     notes: await generalNotes(workspace, campaign, steps),
     steps: steps.map((step) => ({ id: step.id, summary: step.summary, used_by: step.used_by, customized: customized.has(step.id) })),
@@ -46,7 +52,7 @@ export async function settingsCommand(args: Args): Promise<void> {
   const workspace = await loadWorkspace();
   const sub = args.positionals[1] ?? "show";
   if (sub === "show") {
-    print({ mode: workspace.state.mode, limits: workspace.state.limits });
+    print({ mode: workspace.state.mode, limits: workspace.state.limits, follow_up_days: workspace.state.follow_up_days });
     return;
   }
   if (sub === "set") {
@@ -54,7 +60,7 @@ export async function settingsCommand(args: Args): Promise<void> {
     const value = args.positionals[3] ?? required(args, "value");
     const state = applySetting(workspace.state, key, value);
     await writeState(workspace.root, state);
-    print({ mode: state.mode, limits: state.limits });
+    print({ set: key, mode: state.mode, limits: state.limits, follow_up_days: state.follow_up_days });
     return;
   }
   throw new OstackError("unknown_command", "Use: ostack settings show | ostack settings set <key> <value>.");
@@ -83,7 +89,7 @@ export async function setupStatus(workspace: Workspace) {
       .map((question) => ({ ...question, new_since_setup: compareVersions(question.since, reviewed) > 0 })),
     changed_defaults: steps
       .filter((step) => customized.has(step.id) && compareVersions(step.changed, reviewed) > 0)
-      .map((step) => ({ step: step.id, changed: step.changed })),
+      .map((step) => ({ step: step.id, changed: step.changed, change: step.change })),
     // Notes around a step that does not exist (a typo, or a step a release removed).
     unknown_steps: targets
       .filter(({ target }) => "step" in target && !ids.has(target.step))

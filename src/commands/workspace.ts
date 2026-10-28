@@ -15,6 +15,7 @@ import {
   loadWorkspace,
   LOCAL_DIR,
   PACKS_DIR,
+  rememberWorkspace,
 } from "../lib/workspace.ts";
 import { campaignOf } from "./context.ts";
 
@@ -35,6 +36,7 @@ export async function initCommand(args: Args): Promise<void> {
     }
   }
   await writeState(root, { ...state, packs });
+  rememberWorkspace(root);
   const gitignore = join(root, ".gitignore");
   const ignored = existsSync(gitignore) ? await readFile(gitignore, "utf8") : "";
   const missing = IGNORED.filter((line) => !ignored.split("\n").includes(line));

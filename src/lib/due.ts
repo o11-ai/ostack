@@ -31,8 +31,8 @@ export type Due = {
   next: NextAction;
   /** Attempts whose outcome is unknown: settle these before anything else. */
   reconcile: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at" | "expires_at">[];
-  /** Drafts waiting on the user. Check once per run whether they were sent; they never block the queue. */
-  drafts: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at" | "expires_at">[];
+  /** Drafts waiting on the user. Check once per run whether they were sent; they never block the queue or expire. */
+  drafts: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at">[];
   replies: DueLead[];
   follow_ups: DueLead[];
   new: DueLead[];
@@ -62,7 +62,7 @@ export function due(db: Database, state: State, campaign: string, limit: number,
     )
     .all({ campaign, now: at });
   const reconcile = unsettled.filter((attempt) => attempt.status !== "drafted");
-  const drafts = unsettled.filter((attempt) => attempt.status === "drafted");
+  const drafts = unsettled.filter((attempt) => attempt.status === "drafted").map(({ expires_at: _expires, ...draft }) => draft);
 
   const conversations = scope !== "outbound";
   const prospecting = scope !== "follow-ups";

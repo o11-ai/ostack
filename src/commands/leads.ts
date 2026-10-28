@@ -1,4 +1,4 @@
-import { extname } from "node:path";
+import { basename, extname } from "node:path";
 import { integer, oneOf, optional, readFileOrStdin, required, textInput, type Args } from "../lib/args.ts";
 import { listEvents } from "../lib/events.ts";
 import { parseCsv } from "../lib/csv.ts";
@@ -24,6 +24,21 @@ import { campaignOf, openContext } from "./context.ts";
 const LEAD_FIELDS = ["name", "title", "company", "domain", "email", "linkedin_url", "source", "research"] as const;
 const KNOWN = new Set<string>(LEAD_FIELDS);
 
+/** Column names common in CRM and lead-tool exports, mapped to lead fields. */
+const ALIASES: Record<string, (typeof LEAD_FIELDS)[number]> = {
+  full_name: "name",
+  email_address: "email",
+  work_email: "email",
+  linkedin: "linkedin_url",
+  linkedin_profile: "linkedin_url",
+  person_linkedin_url: "linkedin_url",
+  company_name: "company",
+  organization: "company",
+  job_title: "title",
+  website: "domain",
+  company_domain: "domain",
+};
+
 export async function leadsCommand(args: Args): Promise<void> {
   const sub = args.positionals[1];
   const context = await openContext();
@@ -32,7 +47,7 @@ export async function leadsCommand(args: Args): Promise<void> {
     case "add": {
       const campaign = campaignOf(args);
       const file = required(args, "input-file");
-      const inputs = parseLeadFile(await readFileOrStdin(file), file);
+      const inputs = parseLeadFile(await readFileOrStdin(file), file).map((lead) => ({ ...lead, source: lead.source ?? optional(args, "source") ?? (file === "-" ? undefined : `file:${basename(file)}`) }));
       print({ campaign, ...addLeads(db, campaign, inputs) });
       return;
     }
@@ -94,10 +109,16 @@ function parseLeadFile(text: string, path: string): LeadInput[] {
     if (!isRecord(row)) throw new OstackError("invalid_input", `Row ${index} is not an object.`);
     const lead: LeadInput = {};
     const extra: Record<string, unknown> = isRecord(row.fields) ? { ...row.fields } : {};
-    for (const [key, value] of Object.entries(row)) {
-      if (value === undefined || value === null || value === "" || key === "fields") continue;
-      if (KNOWN.has(key)) lead[key as (typeof LEAD_FIELDS)[number]] = typeof value === "string" ? value : JSON.stringify(value);
-      else extra[key] = value;
+    for (const [rawKey, value] of Object.entries(row)) {
+      if (value === undefined || value === null || value === "" || rawKey === "fields") continue;
+      const key = KNOWN.has(rawKey) ? rawKey : ALIASES[rawKey];
+      if (key && lead[key as (typeof LEAD_FIELDS)[number]] === undefined) {
+        lead[key as (typeof LEAD_FIELDS)[number]] = typeof value === "string" ? value : JSON.stringify(value);
+      } else extra[rawKey] = value;
+    }
+    // Exports often split names.
+    if (!lead.name && typeof row.first_name === "string" && row.first_name) {
+      lead.name = [row.first_name, typeof row.last_name === "string" ? row.last_name : ""].join(" ").trim();
     }
     if (Object.keys(extra).length > 0) lead.fields = extra;
     return lead;

@@ -12,6 +12,8 @@ export type Step = {
   used_by: string[];
   /** The version whose release last changed this step's default. */
   changed: string;
+  /** What that release changed, so a review can say what to check in the user's note. */
+  change: string;
   renamed_from: string[];
   path: string;
   body: string;
@@ -30,6 +32,7 @@ export async function loadSteps(): Promise<Step[]> {
         summary: typeof data.summary === "string" ? data.summary : "",
         used_by: strings(data.used_by),
         changed: typeof data.changed === "string" ? data.changed : "0.0.0",
+        change: typeof data.change === "string" ? data.change : "",
         renamed_from: strings(data.renamed_from),
         path,
         body: body.trim(),

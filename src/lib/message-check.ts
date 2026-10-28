@@ -1,4 +1,6 @@
-const PLACEHOLDER = /\{\{[^}]*\}\}|<\s*(first_?name|name|company|sender[a-z_]*|[a-z]+_[a-z_]+)\s*>|\[(first name|name|company|your name)\]/i;
+// {{name}}, {first_name}, <company>, <first_name>, and any [bracketed words] a template left unfilled (but not [markdown](links)).
+const PLACEHOLDER =
+  /\{\{[^}]*\}\}|\{\s*[a-z]+(_[a-z]+)*\s*\}|<\s*(first_?name|name|company|sender[a-z_]*|[a-z]+_[a-z_]+)\s*>|\[[a-z][a-z0-9 ,.'/-]{1,80}\](?!\()/i;
 
 /**
  * The only writing checks the CLI enforces, because no customization should ever want them off.

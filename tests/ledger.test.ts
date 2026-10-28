@@ -9,7 +9,7 @@ import { due } from "../src/lib/due.ts";
 import { OstackError } from "../src/lib/errors.ts";
 import { observe } from "../src/lib/events.ts";
 import { addLeads, getLead, parseFields, qualifyLead, suppress, updateLead } from "../src/lib/leads.ts";
-import { DEFAULT_LIMITS, defaultState, type Limits } from "../src/lib/settings.ts";
+import { applySetting, DEFAULT_LIMITS, defaultState, nextGap, type Limits } from "../src/lib/settings.ts";
 
 function setup(limits: Partial<Limits> = {}) {
   const state = defaultState("0.2.0");
@@ -171,5 +171,25 @@ describe("due scopes", () => {
     expect(outbound.next).toBe("find");
     observe(db, { leadId: replied!, type: "meeting", externalId: "ev-1" });
     expect(due(db, state, "main", 10, new Date(), "follow-ups").next).toBe("done");
+  });
+});
+
+describe("follow-up schedule", () => {
+  test("follow_up_days sets the gaps and the touch ceiling, and max_touches keeps them in step", () => {
+    const state = defaultState("0.3.0");
+    const two = applySetting(state, "follow_up_days", "2,5");
+    expect(two.limits.max_touches).toBe(3);
+    expect([nextGap(two, 1), nextGap(two, 2), nextGap(two, 3)]).toEqual([2, 5, null]);
+    expect(applySetting(two, "follow_up_days", "none").limits.max_touches).toBe(1);
+    expect(applySetting(two, "max_touches", "5").follow_up_days).toEqual([2, 5, 5, 5]);
+    expect(code(() => applySetting(state, "follow_up_days", "3,x"))).toBe("invalid_flag");
+  });
+
+  test("placeholders a template left unfilled are rejected", () => {
+    const { db, limits } = setup();
+    const [id] = addLeads(db, "main", [{ email: "sam@acme.io" }]).added;
+    qualifyLead(db, id!, "qualified", "fits", "acme.io");
+    const body = "hey sam, saw [specific recent thing]. worth 15 min?";
+    expect(code(() => reserve(db, limits, { leadId: id!, kind: "touch", channel: "email", subject: "acme", body }))).toBe("message_rejected");
   });
 });

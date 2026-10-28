@@ -1,10 +1,11 @@
 import { integer, oneOf, optional, parseDate, required, textInput, type Args } from "../lib/args.ts";
-import { ATTEMPT_KINDS, budget, OUTCOMES, receipt, reserve } from "../lib/attempts.ts";
+import { ATTEMPT_KINDS, budget, getAttempt, OUTCOMES, receipt, reserve } from "../lib/attempts.ts";
 import { due, DUE_SCOPES } from "../lib/due.ts";
 import { OstackError } from "../lib/errors.ts";
 import { checkEventType, observe } from "../lib/events.ts";
 import { countByStatus, deferLead, getLead, present, suppress, SUPPRESSION_KINDS } from "../lib/leads.ts";
 import { print } from "../lib/output.ts";
+import { nextGap } from "../lib/settings.ts";
 import { campaignOf, openContext } from "./context.ts";
 
 export async function dueCommand(args: Args): Promise<void> {
@@ -37,13 +38,12 @@ export async function reserveCommand(args: Args): Promise<void> {
     subject: optional(args, "subject"),
     body,
   });
-  const after = attempt.kind === "touch" ? " --next-in-days <n>|--last" : "";
   print({
     attempt,
     next:
       workspace.state.mode === "draft"
         ? `Create this exact message as a draft, then run: ostack receipt --attempt ${attempt.id} --outcome drafted`
-        : `Send this exact message now, then run: ostack receipt --attempt ${attempt.id} --outcome sent --external-id <message id>${after}`,
+        : `Send this exact message now, then run: ostack receipt --attempt ${attempt.id} --outcome sent --external-id <message id> --thread-id <thread id>`,
   });
 }
 
@@ -52,19 +52,27 @@ export async function receiptCommand(args: Args): Promise<void> {
   const last = args.flags.last === true;
   const days = optional(args, "next-in-days");
   if (last && days !== undefined) throw new OstackError("invalid_flag", "Use --next-in-days or --last, not both.");
+  const attemptId = required(args, "attempt");
   let next: { inDays: number } | null | undefined;
   if (last) next = null;
   else if (days !== undefined) next = { inDays: integer(args, "next-in-days", 1) };
-  print(
-    receipt(db, workspace.state.limits, {
-      attemptId: required(args, "attempt"),
+  else {
+    // Without an override, the next touch follows the workspace's follow-up schedule.
+    const attempt = getAttempt(db, attemptId);
+    if (attempt.kind === "touch" && attempt.step !== null) {
+      const gap = nextGap(workspace.state, attempt.step);
+      next = gap === null ? null : { inDays: gap };
+    }
+  }
+  const result = receipt(db, workspace.state.limits, {
+      attemptId,
       outcome: oneOf(args, "outcome", OUTCOMES),
       externalId: optional(args, "external-id"),
       threadId: optional(args, "thread-id"),
       evidence: optional(args, "evidence"),
       next,
-    }),
-  );
+    });
+  print({ attempt: result.attempt, lead: present(result.lead) });
 }
 
 export async function observeCommand(args: Args): Promise<void> {

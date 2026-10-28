@@ -1,6 +1,6 @@
 {
   "name": "ostack",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Open-source GTM skills for coding agents, starting with configurable cold outbound.",
   "license": "MIT",
   "type": "module",
