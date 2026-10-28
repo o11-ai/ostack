@@ -36,7 +36,7 @@ Any time the user says how something should work ("use this template", "never me
 
 1. Work out which step it belongs to (`ostack steps` lists them) or whether it is general.
 2. Update the existing note, or write a new one. Keep the note to what the user wants, not a copy of the default. If it is a setting (mode, limits, follow-up schedule), change it with `ostack settings set` and remove anything in the notes that contradicts it.
-3. Test it the same way as in the interview, and show the result.
+3. Test it and show the result: for a tool, the interview's check; for how messages are written, one real draft; for who to reach, a qualify verdict on a real lead. `ostack context <step>` confirms the note loads.
 
 When the user corrects you during a run ("don't open with a compliment", "that's not our ICP"), offer once to save it. If they agree, add it to the right step's note, or to `learnings.md` if it applies everywhere.
 

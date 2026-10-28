@@ -25,7 +25,7 @@ A later layer refines the earlier ones and wins where they conflict. To replace 
 
 - **Write only what differs from the default.** Never copy the default into a note. A copy freezes today's behavior and hides every later improvement to that step.
 - Use the user's words. Be concrete: name tools, accounts, stages, numbers and examples.
-- One topic per note. Put rules about everything in `learnings.md` or another general note.
+- One topic per note, and each fact in one place: who to reach lives in `qualify.md`, the offer in `about.md`. Other notes point to them ("see qualify.md") instead of restating them, so one edit changes everything. Put rules about everything in `learnings.md` or another general note.
 - Never repeat a setting in a note (mode, daily limits, the follow-up schedule). `ostack settings` holds those, and a copy in a note goes stale the day the setting changes.
 - Never put passwords, API keys or tokens in notes. Point to where they live instead, for example "the key is in RESEND_API_KEY in .env". Make sure `.env` is gitignored.
 - If a customization needs code (an API call, a small script), put the script in the workspace, for example `scripts/send-resend.ts`, and have the note say when and how to run it.

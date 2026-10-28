@@ -38,7 +38,9 @@ export async function contextCommand(args: Args): Promise<void> {
     limits: workspace.state.limits,
     follow_up_days: workspace.state.follow_up_days,
     packs: workspace.state.packs,
-    notes: await generalNotes(workspace, campaign, steps),
+    notes: (await generalNotes(workspace, campaign, steps)).map((note) =>
+      args.flags.files === true ? { layer: note.layer, file: note.file, path: note.path } : note,
+    ),
     steps: steps.map((step) => ({ id: step.id, summary: step.summary, used_by: step.used_by, customized: customized.has(step.id) })),
   });
 }

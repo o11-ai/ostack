@@ -22,7 +22,8 @@ const HELP = `ostack: a customizable go-to-market baseline for coding agents
 
 Workspace and customization
   init [--dir <path>] [--packs a,b]            create an empty workspace (then ask your agent to "set up ostack")
-  context [<step>] [--campaign <name>]         what to know before a run, or one step's default plus every customization of it
+  context [<step>|<note>] [--campaign <name>] [--files]   what to know before a run (--files: note names only),
+                                               or one step's default plus every customization of it
   steps                                        the named steps customizations attach to
   settings show | settings set <key> <value>   mode (draft|send), new_per_day, touches_per_day, per_company,
                                                follow_up_days (days before each follow-up, e.g. 3,4,7, or none)
