@@ -18,6 +18,6 @@ Before reserving, check:
 - Every fact comes from a source you read. Unknown pain is asked about, never asserted.
 - Swap test: if another company's name would work just as well, it is too generic. Research more or defer the lead.
 - No unfilled placeholders (`reserve` rejects them too). If the template needs something research could not find (a first name, a recent event), defer the lead with the reason rather than guess.
-- Vary openings across a batch; never rotate one template with noun swaps. With a user's template, keep its fixed words and vary only what it leaves for you to fill.
+- Without a template, vary openings across a batch; never rotate one shape with noun swaps. With the user's template, keep its fixed words exactly and make what you fill in specific to each person.
 
 For previews and examples, show the company and URL, two sentences on what they do, why they qualify (or what is unconfirmed), then the full message. Previews never reserve or send.
