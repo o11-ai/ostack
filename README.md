@@ -78,12 +78,12 @@ Change anything later the same way: *"we sell to dentists now"*, *"stop mentioni
 Every skill is a chain of **named steps**. Each step ships with a sensible default, and before running one the agent loads your notes for it.
 
 ```mermaid
-flowchart LR
-  subgraph O["🎯 outbound"]
+flowchart TB
+  subgraph O["🎯 outbound · weekday mornings"]
     direction LR
     find --> qualify --> research --> write --> send1["send"] --> record1["record"]
   end
-  subgraph F["📬 follow-ups"]
+  subgraph F["📬 follow-ups · hourly"]
     direction LR
     inbox --> reply --> book --> send2["send"] --> record2["record"]
     inbox --> followup["follow-up"] --> send2
@@ -97,15 +97,12 @@ flowchart LR
 
 Your notes are markdown files the agent writes. They sit in layers on top of the baseline, and **the higher layer wins**:
 
-```mermaid
-flowchart BT
-  steps["📦 step defaults<br><i>ship with ostack, improve with every upgrade</i>"]
-  packs["🧰 packs<br><i>b2b-founders · recruiting · fundraising · gmail · outlook-web</i>"]
-  custom["👥 custom/<br><i>your team's notes, committed to git</i>"]
-  campaign["🚀 campaigns/name/<br><i>one push, such as fundraising next to sales</i>"]
-  local["🙋 custom.local/<br><i>just you, gitignored</i>"]
-  steps --> packs --> custom --> campaign --> local
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/layers-dark.svg">
+    <img alt="Layers from bottom to top: step defaults, packs, custom/, campaigns/name/, custom.local/. Higher layers win." src="assets/layers-light.svg" width="100%">
+  </picture>
+</p>
 
 | A note named… | Applies… | Example |
 | --- | --- | --- |
@@ -144,12 +141,12 @@ sequenceDiagram
   participant Agent
   participant ostack
   You->>ostack: ostack upgrade
-  ostack-->>ostack: new skills, steps, packs and CLI (your workspace untouched)
+  Note over ostack: new baseline, your notes untouched
   You->>Agent: "review ostack updates"
   Agent->>ostack: ostack setup status
-  ostack-->>Agent: 1 new question · 1 changed default you customized
-  Agent->>You: Asks only the new question
-  Agent->>You: "The write step changed. Keep your template as is?"
+  ostack-->>Agent: 1 new question, 1 changed default
+  Agent->>You: asks only the new question
+  Agent->>You: "write changed. Keep your template?"
 ```
 
 - **New setup questions** are the only ones asked again.
@@ -161,7 +158,7 @@ sequenceDiagram
 
 These hold whatever your notes say, because the CLI enforces them rather than relying on the prompt:
 
-| | |
+| Guarantee | What it means |
 | --- | --- |
 | 🔒 **Reserve → send → receipt** | Every message is recorded with its exact text before it goes out, and with the provider's ID after. |
 | 🚫 **No double sends** | An unknown outcome is checked against the real mailbox. It is never resent blindly. |

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="330" viewBox="0 0 900 330" role="img" aria-label="Customization layers: step defaults, then packs, custom, campaigns and custom.local; higher layers win">
+<rect width="900" height="330" rx="18" fill="#ffffff"/>
+<rect x="96" y="24" width="640" height="46" rx="10" fill="#eef2ff" stroke="#c7d2fe"/>
+<text x="116" y="53" font-size="17" font-weight="600" fill="#0f172a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">custom.local/</text>
+<text x="346" y="53" font-size="15" fill="#0f172a" opacity="0.85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">just you · gitignored</text>
+<text x="754" y="53" font-size="13" fill="#64748b" font-style="italic" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"></text>
+<rect x="96" y="82" width="640" height="46" rx="10" fill="#e0e7ff" stroke="#c7d2fe"/>
+<text x="116" y="111" font-size="17" font-weight="600" fill="#0f172a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">campaigns/&lt;name&gt;/</text>
+<text x="346" y="111" font-size="15" fill="#0f172a" opacity="0.85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">one push, e.g. fundraising</text>
+<text x="754" y="111" font-size="13" fill="#64748b" font-style="italic" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"></text>
+<rect x="96" y="140" width="640" height="46" rx="10" fill="#c7d2fe" stroke="#c7d2fe"/>
+<text x="116" y="169" font-size="17" font-weight="600" fill="#0f172a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">custom/</text>
+<text x="346" y="169" font-size="15" fill="#0f172a" opacity="0.85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">your team · committed</text>
+<text x="754" y="169" font-size="13" fill="#64748b" font-style="italic" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"></text>
+<rect x="96" y="198" width="640" height="46" rx="10" fill="#a5b4fc" stroke="#c7d2fe"/>
+<text x="116" y="227" font-size="17" font-weight="600" fill="#0f172a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">packs</text>
+<text x="346" y="227" font-size="15" fill="#0f172a" opacity="0.85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">shared starting points</text>
+<text x="754" y="227" font-size="13" fill="#64748b" font-style="italic" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"></text>
+<rect x="96" y="256" width="640" height="46" rx="10" fill="#4f46e5" stroke="#c7d2fe"/>
+<text x="116" y="285" font-size="17" font-weight="600" fill="#ffffff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">step defaults</text>
+<text x="346" y="285" font-size="15" fill="#ffffff" opacity="0.85" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">ship with ostack, improve every upgrade</text>
+<text x="754" y="285" font-size="13" fill="#64748b" font-style="italic" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"></text>
+<line x1="48" y1="290" x2="48" y2="40" stroke="#4f46e5" stroke-width="3" stroke-linecap="round"/>
+<path d="M38 52 L48 34 L58 52 Z" fill="#4f46e5"/>
+<text x="48" y="318" font-size="13" text-anchor="middle" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">base</text>
+<text x="770" y="56" font-size="15" font-weight="600" fill="#4f46e5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">wins</text>
+<text x="770" y="76" font-size="13" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">where notes</text>
+<text x="770" y="94" font-size="13" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">conflict</text>
+<text x="770" y="282" font-size="15" font-weight="600" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">baseline</text>
+<text x="770" y="302" font-size="13" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">never edited</text>
+</svg>
