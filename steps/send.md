@@ -9,7 +9,7 @@ Use whatever tool the user's notes name for this channel (a mail MCP, a browser 
 Every message, without exception:
 1. `ostack reserve --lead <id> --kind touch|reply --channel <channel> [--subject <s>] --body-file -` with the exact final text. If it refuses, follow the error; never work around it.
 2. Before the first send of a run, confirm the signed-in account is the sender the user configured. On a mismatch, stop sending and report it.
-3. In `send` mode, send exactly the reserved text. In `draft` mode, create it as a draft (or show it in chat if no tool can hold drafts). The mode in `ostack context` decides this; if a note seems to say otherwise, follow the mode and mention the conflict in the report.
+3. In `send` mode, send exactly the reserved text. In `draft` mode, create it as a draft (or show it in chat if no tool can hold drafts). The mode in `ostack context` decides this; if a note seems to say otherwise, follow the mode and mention the conflict in the report. When the user asks you to switch modes, run `ostack settings set mode ...` and delete any line about the mode from their notes.
 4. Immediately run `ostack receipt --attempt <id> --outcome sent|drafted|not_sent|uncertain` with the provider's message and thread IDs. The next follow-up is scheduled for you.
 5. If the send errors or times out, look in the Sent folder (or thread) now. Found it: receipt `sent` with its IDs. Clearly not there and the tool said it failed: receipt `not_sent` with how you checked. Cannot tell: receipt `uncertain`. Never send again to "fix" it; the next run reconciles uncertain ones.
 

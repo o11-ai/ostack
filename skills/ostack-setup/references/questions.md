@@ -34,7 +34,7 @@ Check: Draft one message for a real lead and ask what to change. Repeat until th
 Since: 0.2.0
 Ask: Which account should messages go out from, and through what? (a Gmail or Outlook connector, the browser, an email API like Resend, LinkedIn in the browser) Draft-only for now, or should I send?
 Default: Draft mode, through whichever connected mail tool fits.
-Writes: `custom/send.md` with the account and tool for each channel, and `custom/inbox.md` with how to read replies the same way. Offer the matching pack (`gmail`, `outlook-web`) when one fits. Set the mode with `ostack settings set mode draft|send`. The mode setting alone decides draft or send: never write it into a note, so a later switch cannot leave a stale note behind.
+Writes: `custom/send.md` with the account and tool for each channel, and `custom/inbox.md` with how to read replies the same way. Offer the matching pack (`gmail`, `outlook-web`) when one fits. Set the mode with `ostack settings set mode draft|send`. The mode setting alone decides draft or send: leave every mention of drafting or sending first (even "start in draft mode") out of the notes, so a later switch cannot leave a stale note behind.
 Check: Confirm the signed-in account, and create a test draft to the user themselves (never to a lead).
 
 ## follow-ups
