@@ -1,64 +1,67 @@
 import { integer, oneOf, optional, parseDate, required, textInput, type Args } from "../lib/args.ts";
-import { ATTEMPT_KINDS, budget, getAttempt, OUTCOMES, receipt, reserve } from "../lib/attempts.ts";
+import { ATTEMPT_KINDS, budget, OUTCOMES, receipt, reserve } from "../lib/attempts.ts";
 import { due } from "../lib/due.ts";
 import { OstackError } from "../lib/errors.ts";
-import { EVENT_TYPES, observe } from "../lib/events.ts";
-import { countByStatus, deferLead, getLead, suppress, SUPPRESSION_KINDS } from "../lib/leads.ts";
+import { checkEventType, observe } from "../lib/events.ts";
+import { countByStatus, deferLead, getLead, present, suppress, SUPPRESSION_KINDS } from "../lib/leads.ts";
 import { print } from "../lib/output.ts";
-import { CHANNELS, loadPlaybook } from "../lib/playbook.ts";
-import { openContext, selectedPlaybook } from "./context.ts";
+import { campaignOf, openContext } from "./context.ts";
 
 export async function dueCommand(args: Args): Promise<void> {
-  const context = await openContext();
-  const { playbook } = await selectedPlaybook(context, args);
-  print(due(context.db, playbook, integer(args, "limit", 10)));
+  const { workspace, db } = await openContext();
+  print(due(db, workspace.state, campaignOf(args), integer(args, "limit", 10)));
 }
 
 export async function statusCommand(args: Args): Promise<void> {
-  const context = await openContext();
-  const { playbook } = await selectedPlaybook(context, args);
+  const { workspace, db } = await openContext();
+  const campaign = campaignOf(args);
   print({
-    playbook: playbook.name,
-    mode: playbook.mode,
-    leads: countByStatus(context.db, playbook.name),
-    budget: budget(context.db, playbook),
-    limits: playbook.limits,
+    campaign,
+    mode: workspace.state.mode,
+    leads: countByStatus(db, campaign),
+    budget: budget(db, workspace.state.limits),
+    limits: workspace.state.limits,
   });
 }
 
 export async function reserveCommand(args: Args): Promise<void> {
-  const context = await openContext();
-  const lead = getLead(context.db, required(args, "lead"));
-  const { playbook } = await loadPlaybook(context.workspace, lead.playbook);
+  const { workspace, db } = await openContext();
+  const lead = getLead(db, required(args, "lead"));
   const body = await textInput(args, "body");
   if (!body) throw new OstackError("missing_flag", "--body or --body-file is required.");
-  const attempt = reserve(context.db, playbook, {
+  const attempt = reserve(db, workspace.state.limits, {
     leadId: lead.id,
     kind: oneOf(args, "kind", ATTEMPT_KINDS),
-    channel: oneOf(args, "channel", CHANNELS),
+    channel: required(args, "channel"),
     subject: optional(args, "subject"),
     body,
   });
+  const after = attempt.kind === "touch" ? " --next-in-days <n>|--last" : "";
   print({
     attempt,
     next:
-      playbook.mode === "draft"
+      workspace.state.mode === "draft"
         ? `Create this exact message as a draft, then run: ostack receipt --attempt ${attempt.id} --outcome drafted`
-        : `Send this exact message now, then run: ostack receipt --attempt ${attempt.id} --outcome sent --external-id <message id>`,
+        : `Send this exact message now, then run: ostack receipt --attempt ${attempt.id} --outcome sent --external-id <message id>${after}`,
   });
 }
 
 export async function receiptCommand(args: Args): Promise<void> {
-  const context = await openContext();
-  const attempt = getAttempt(context.db, required(args, "attempt"));
-  const { playbook } = await loadPlaybook(context.workspace, attempt.playbook);
+  const { workspace, db } = await openContext();
+  const last = args.flags.last === true;
+  const days = optional(args, "next-in-days");
+  if (last && days !== undefined) throw new OstackError("invalid_flag", "Use --next-in-days or --last, not both.");
+  let next: { inDays: number } | null | undefined;
+  if (last) next = null;
+  else if (days !== undefined) next = { inDays: integer(args, "next-in-days", 1) };
   print(
-    receipt(context.db, playbook, {
-      attemptId: attempt.id,
+    receipt(db, workspace.state.limits, {
+      attemptId: required(args, "attempt"),
       outcome: oneOf(args, "outcome", OUTCOMES),
       externalId: optional(args, "external-id"),
       threadId: optional(args, "thread-id"),
       evidence: optional(args, "evidence"),
+      next,
     }),
   );
 }
@@ -67,21 +70,20 @@ export async function observeCommand(args: Args): Promise<void> {
   const { db } = await openContext();
   const occurredAt = optional(args, "occurred-at");
   const until = optional(args, "until");
-  print(
-    observe(db, {
-      leadId: required(args, "lead"),
-      type: oneOf(args, "type", EVENT_TYPES),
-      body: await textInput(args, "body"),
-      externalId: optional(args, "external-id"),
-      occurredAt: occurredAt ? parseDate(occurredAt, "occurred-at") : undefined,
-      until: until ? parseDate(until, "until") : undefined,
-    }),
-  );
+  const result = observe(db, {
+    leadId: required(args, "lead"),
+    type: checkEventType(required(args, "type")),
+    body: await textInput(args, "body"),
+    externalId: optional(args, "external-id"),
+    occurredAt: occurredAt ? parseDate(occurredAt, "occurred-at") : undefined,
+    until: until ? parseDate(until, "until") : undefined,
+  });
+  print({ duplicate: result.duplicate, lead: present(result.lead) });
 }
 
 export async function deferCommand(args: Args): Promise<void> {
   const { db } = await openContext();
-  print(deferLead(db, required(args, "lead"), parseDate(required(args, "until"), "until"), required(args, "reason")));
+  print(present(deferLead(db, required(args, "lead"), parseDate(required(args, "until"), "until"), required(args, "reason"))));
 }
 
 export async function suppressCommand(args: Args): Promise<void> {

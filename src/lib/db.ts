@@ -1,13 +1,13 @@
 import { Database } from "bun:sqlite";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE leads (
   id TEXT PRIMARY KEY,
-  playbook TEXT NOT NULL,
+  campaign TEXT NOT NULL,
   status TEXT NOT NULL,
   name TEXT,
   title TEXT,
@@ -19,6 +19,7 @@ CREATE TABLE leads (
   research TEXT,
   reason TEXT,
   evidence TEXT,
+  fields TEXT,
   step INTEGER NOT NULL DEFAULT 0,
   next_due_at TEXT,
   defer_until TEXT,
@@ -27,13 +28,13 @@ CREATE TABLE leads (
   updated_at TEXT NOT NULL,
   CHECK (email IS NOT NULL OR linkedin_url IS NOT NULL)
 );
-CREATE INDEX leads_playbook_status ON leads (playbook, status);
+CREATE INDEX leads_campaign_status ON leads (campaign, status);
 CREATE INDEX leads_domain ON leads (domain);
 
 CREATE TABLE attempts (
   id TEXT PRIMARY KEY,
   lead_id TEXT NOT NULL REFERENCES leads (id),
-  playbook TEXT NOT NULL,
+  campaign TEXT NOT NULL,
   kind TEXT NOT NULL,
   step INTEGER,
   channel TEXT NOT NULL,
@@ -49,7 +50,7 @@ CREATE TABLE attempts (
 );
 CREATE UNIQUE INDEX attempts_one_open_per_lead ON attempts (lead_id)
   WHERE status IN ('reserved', 'drafted', 'uncertain');
-CREATE INDEX attempts_playbook_reserved ON attempts (playbook, reserved_at);
+CREATE INDEX attempts_reserved ON attempts (reserved_at);
 
 CREATE TABLE events (
   id TEXT PRIMARY KEY,
@@ -71,6 +72,19 @@ CREATE TABLE suppressions (
 );
 `;
 
+/** Upgrades from each older schema version to the next. Releases only ever add entries here. */
+const MIGRATIONS: Record<number, string> = {
+  1: `
+ALTER TABLE leads RENAME COLUMN playbook TO campaign;
+ALTER TABLE attempts RENAME COLUMN playbook TO campaign;
+ALTER TABLE leads ADD COLUMN fields TEXT;
+DROP INDEX leads_playbook_status;
+CREATE INDEX leads_campaign_status ON leads (campaign, status);
+DROP INDEX attempts_playbook_reserved;
+CREATE INDEX attempts_reserved ON attempts (reserved_at);
+`,
+};
+
 export function openLedger(path: string): Database {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new Database(path, { create: true, strict: true });
@@ -85,8 +99,19 @@ export function openLedger(path: string): Database {
       db.exec(SCHEMA);
       db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     })();
+  } else if (version < SCHEMA_VERSION) {
+    if (path !== ":memory:") db.exec(`VACUUM INTO '${backupPath(path, version).replaceAll("'", "''")}'`);
+    db.transaction(() => {
+      for (let from = version; from < SCHEMA_VERSION; from++) db.exec(MIGRATIONS[from]!);
+      db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    })();
   }
   return db;
+}
+
+function backupPath(path: string, version: number): string {
+  const base = `${path}.v${version}-backup`;
+  return existsSync(base) ? `${base}-${Date.now()}` : base;
 }
 
 export function newId(prefix: string): string {

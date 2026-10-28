@@ -2,9 +2,9 @@
 
 Open-source go-to-market skills for coding agents, from [o11](https://o11.ai).
 
-The first skill is **cold outbound** you can configure. You describe your offer, who to reach, how you write, where leads come from and how often to follow up. Your agent (Claude Code, Codex, Cursor, Gemini) then runs the same loop every day: source, qualify, research, write, send, follow up, and answer replies. A local ledger guarantees that no one is contacted twice and that opt-outs stick.
+ostack is a baseline you shape by talking to your agent. Install it, say **"set up ostack"**, and your agent interviews you: what you sell, who to reach, how you write, which mailbox to send from, whether to keep your CRM in step, how to book meetings. It writes your answers down as short plain-language notes, tests each one against your real tools, and from then on runs outbound and follow-ups your way. Updates improve the baseline without touching anything you customized.
 
-There is no hosted backend and no account. Your agent sends through the mail, LinkedIn and calendar tools it already has, and ostack keeps the method and the record.
+There is no hosted backend and no account. Your agent works through the mail, LinkedIn, calendar and CRM tools it already has. ostack provides the method, and a local ledger guarantees nobody is contacted twice and opt-outs stick.
 
 ## Install
 
@@ -15,74 +15,98 @@ git clone --depth 1 https://github.com/o11-ai/ostack.git ~/ostack
 ~/ostack/setup                 # Claude Code; or --host codex|cursor|gemini|auto
 ```
 
-`setup` symlinks the skills into your agent's skills folder and links `ostack` into `~/.local/bin`. Nothing is copied, so `ostack upgrade` (a `git pull`) updates every agent at once. To see what is installed, run `./setup --status`. To remove it, run `./setup --uninstall`.
+`setup` symlinks the skills into your agent's skills folder and links `ostack` into `~/.local/bin`. Run `./setup --status` to see what is installed, and `./setup --uninstall` to remove it.
 
 ## Quick start
 
 ```bash
-mkdir ~/gtm && cd ~/gtm
-ostack init --from b2b-founders          # or recruiting, fundraising; see: ostack templates
+mkdir ~/gtm && cd ~/gtm && ostack init
 ```
 
-Then ask your agent to **"set up my outbound playbook"**. The `ostack-setup` skill interviews you, writes the playbook, and drafts two real example messages for you to approve. After that:
+Then talk to your agent:
+
+> set up ostack
+
+> use this template for first emails: ...
+
+> keep Lightfield in step with everything through its MCP
 
 > run my outbound
 
-For a daily run, schedule the output of `ostack prompt` with Claude's `/schedule`, a Codex automation, or cron.
+> check my replies
 
-## How it fits together
+## Skills
+
+| Skill | Does | Typical schedule |
+| --- | --- | --- |
+| `outbound` | find → qualify → research → write → send → record | Weekday mornings |
+| `follow-ups` | inbox → reply / follow-up → book → send → record | Hourly |
+| `ostack-setup` | Interviews you, writes and tests customizations, reviews updates | When you want to change something |
+
+## How customization works
+
+Each skill is made of **named steps** (`ostack steps`): `find`, `qualify`, `research`, `write`, `send`, `record`, `inbox`, `reply`, `follow-up`, `book` and `report`. Every step ships with a sensible default. Before each step, the agent runs `ostack context <step>`, which returns the default plus your notes for that step.
+
+Your notes are markdown files in your workspace, written by the agent from what you tell it:
 
 ```
-skills/cold-outbound     the method: same for everyone
-skills/ostack-setup      turns an interview into a playbook
-playbooks/<name>/        yours: playbook.yaml, offer.md, voice.md
-.ostack/ledger.db        yours: every lead, message, reply and opt-out (SQLite)
-ostack CLI               the only thing that writes the ledger
+~/gtm/
+  ostack.json            managed by the CLI: mode, limits, packs, which setup questions were asked
+  custom/                your team's notes (commit these)
+    about.md             what you sell, the one ask, proof, never-claim
+    voice.md             how you write, real samples, signature
+    write.md             e.g. "always use this template: ..."
+    send.md              e.g. "send from sam@ in Outlook web"
+    after-record.md      e.g. "update Lightfield: stages ..."
+    learnings.md         corrections you asked the agent to remember
+  custom.local/          your personal notes, gitignored, which win over the team's
+  campaigns/<name>/      notes for one campaign, e.g. fundraising next to sales
+  .ostack/ledger.db      every lead, message, reply and opt-out (SQLite)
 ```
 
-A workspace is any folder with an `ostack.yaml`. It can hold several playbooks, for example `sales-founders`, `recruiting-backend` and `fundraising-seed`. They share one ledger, so a person or company contacted by one playbook is not contacted again by another.
+- A note named after a step (`write.md`) refines that step. `before-<step>.md` and `after-<step>.md` run around it. Any other note is context for every run.
+- Layers stack, lowest priority first: step defaults, then **packs** (shared starting points such as `b2b-founders`, `recruiting`, `fundraising`, `gmail`, `outlook-web`), then `custom/`, then the campaign, then `custom.local/`. Later layers win.
+- Notes hold only what differs from the default, so improvements to everything else keep arriving.
+- Anything can be customized, including adding tools ostack has never heard of. Where a customization needs code (an email API, a webhook), the agent puts a small script in your workspace and a note saying when to run it.
 
-### The playbook
+## Updates
 
-Everything specific to you lives in `playbooks/<name>/`. See the [full reference](skills/ostack-setup/references/playbook.md).
+```bash
+ostack upgrade
+```
 
-| Field | Controls |
-| --- | --- |
-| `mode` | `draft` (you approve every message) or `send` |
-| `sender` | Who messages go out as, and the signature |
-| `target` | Who fits: rules to prove, exclusions, the role to contact |
-| `sources` | Where leads come from: your CSV, web research queries, or connected tools (Apollo, Clay, a CRM MCP) |
-| `sequence` | Steps, channels (email, LinkedIn), wait days, and a brief for each touch |
-| `limits` | First touches per day, total touches per day, people per company, research per run |
-| `writing` | Word limit, banned phrases (enforced), style rules |
+This pulls the new baseline: skills, step defaults, packs and the CLI. Your workspace is never touched. The ledger upgrades itself, after making a backup. Then tell your agent **"review ostack updates"**. `ostack setup status` lists what it covers:
+- only the setup questions that are new
+- steps you customized whose default changed, so you can keep, change or drop your note
+- notes for steps that were renamed or removed
 
-`offer.md` holds what you offer, your proof and your one ask. `voice.md` holds real messages you sent, so drafts sound like you.
+Notes for a renamed step keep working until you rename them.
 
-### What every run does
+## Guarantees
 
-`ostack due` returns the work in order: **reconcile** messages whose outcome is unknown, answer **replies**, send due **follow-ups**, send **new** first touches, **qualify** researched leads, then **source** more. The agent repeats until the daily budget is used or the sources run dry.
+These hold whatever your notes say, because the CLI enforces them rather than the prompts:
 
-### Guarantees, enforced by the CLI rather than by prompts
-
-- Every message is **reserved** with its exact text, sent, then **receipted** with the provider's ID. A lead can never have two unfinished attempts.
-- If an outcome is unknown, it is reconciled against the real mailbox and never resent.
-- Duplicate people across playbooks are rejected, and the people-per-company limit holds across all playbooks.
-- Bounces and opt-outs suppress the address permanently.
-- A human reply pauses the sequence.
-- Daily limits count everything that might have gone out.
-- Banned phrases, unfilled placeholders and over-long messages are rejected before sending.
+- Every message is **reserved** with its exact text, sent, then **receipted** with the provider's ID. A lead never has two unfinished messages.
+- If an outcome is unknown, it is checked against the real mailbox. It is never resent blindly.
+- A person is never added twice, and the people-per-company limit holds across campaigns.
+- Bounces and opt-outs block the address permanently.
+- A reply pauses that person's sequence.
+- Daily limits and `max_touches` are hard ceilings.
+- Messages with unfilled placeholders are rejected.
 
 ## CLI
 
-```bash
-ostack help
-```
+`ostack help` lists every command. Every command prints JSON for the agent. The ones you might run yourself are `ostack doctor`, `ostack status`, `ostack context`, `ostack settings show`, `ostack leads list` and `ostack suppress --email <x> --reason <why>`.
 
-Every command prints JSON for the agent. The commands you are most likely to run yourself are `ostack status`, `ostack leads list`, `ostack leads show --id <id>`, `ostack suppress --email <x> --reason <why>` and `ostack doctor`.
+## Upgrading from 0.1
+
+0.1 used `playbooks/` and `ostack.yaml`. To move a 0.1 workspace:
+- Run `ostack init` in the same folder, then "set up ostack". The agent can read your old playbook files to answer most questions.
+- Your ledger migrates automatically, and old leads keep their playbook name as their campaign.
 
 ## Responsible use
 
-You are responsible for following the law where you and your recipients are (CAN-SPAM, GDPR, CASL and others) and each platform's terms, including LinkedIn's. Start in `draft` mode, keep volumes low, honor every opt-out, and only send what you would send by hand.
+You are responsible for following the law where you and your recipients are (CAN-SPAM, GDPR, CASL and others) and each platform's terms, including LinkedIn's. Start in draft mode, keep volumes low, honor every opt-out, and only send what you would send by hand.
 
 ## Development
 
@@ -91,7 +115,10 @@ bun test ./tests
 bun run src/cli.ts help
 ```
 
-Skills are plain Markdown in `skills/`. Keep them generic: anything specific to one company belongs in a playbook. Starter playbooks live in `playbooks/`, and new templates for other use cases are welcome.
+- Skills (`skills/`) and step defaults (`steps/`) are plain Markdown.
+- Step ids and setup question ids are the stable surface customizations attach to. Rename a step only with `renamed_from` in its frontmatter. When a step's default changes meaningfully, bump its `changed` version.
+- New setup questions go in [`questions.md`](skills/ostack-setup/references/questions.md) with a `Since` version.
+- New packs are welcome in `packs/`.
 
 ## License
 

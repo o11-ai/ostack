@@ -3,12 +3,20 @@ import { newId } from "./db.ts";
 import { OstackError } from "./errors.ts";
 import { getLead, suppress, type Lead } from "./leads.ts";
 
+/** Event types with built-in effects on the lead. Any other lowercase type (crm_synced, call_logged, ...) is recorded as-is. */
 export const EVENT_TYPES = ["reply", "bounce", "opt_out", "out_of_office", "meeting", "note"] as const;
-export type EventType = (typeof EVENT_TYPES)[number];
+
+export function checkEventType(value: string): string {
+  const type = value.trim().toLowerCase();
+  if (!/^[a-z][a-z0-9_]*$/.test(type)) {
+    throw new OstackError("invalid_flag", "--type must be lowercase letters, numbers and underscores, such as reply or crm_synced.");
+  }
+  return type;
+}
 
 export type ObserveInput = {
   leadId: string;
-  type: EventType;
+  type: string;
   body?: string;
   externalId?: string;
   occurredAt?: Date;
@@ -18,14 +26,14 @@ export type ObserveInput = {
 export type LeadEvent = {
   id: string;
   lead_id: string;
-  type: EventType;
+  type: string;
   body: string | null;
   external_id: string | null;
   occurred_at: string;
   created_at: string;
 };
 
-/** Records something the prospect did. Replies pause the sequence; bounces and opt-outs stop it everywhere. */
+/** Records something that happened. Replies pause the sequence; bounces and opt-outs stop it everywhere. */
 export function observe(db: Database, input: ObserveInput, now = new Date()): { duplicate: boolean; lead: Lead } {
   if (input.type === "out_of_office" && !input.until) {
     throw new OstackError("missing_flag", "--until is required for out_of_office; use the return date from the auto-reply.");
@@ -83,7 +91,7 @@ export function observe(db: Database, input: ObserveInput, now = new Date()): { 
             now: timestamp,
           });
           break;
-        case "note":
+        default:
           break;
       }
       return { duplicate: false, lead: getLead(db, lead.id) };

@@ -93,11 +93,21 @@ uninstall() {
   echo "Workspaces and ledgers were left alone."
 }
 
-# Re-links hosts that already have ostack, so new skills appear after an upgrade.
+# Re-links hosts that already have ostack, so new skills appear after an upgrade,
+# and removes links to skills a release renamed or removed.
 relink() {
-  local host
+  local host dir link found
   for host in "${ALL_HOSTS[@]}"; do
-    if is_ours "$(host_dir "$host")/cold-outbound"; then link_host "$host"; fi
+    dir="$(host_dir "$host")"
+    [ -d "$dir" ] || continue
+    found=false
+    for link in "$dir"/*; do
+      if is_ours "$link"; then
+        found=true
+        if [ ! -e "$link" ]; then rm "$link" && echo "  removed $link (no longer shipped)"; fi
+      fi
+    done
+    if $found; then link_host "$host"; fi
   done
   link_cli
 }
@@ -138,6 +148,6 @@ cat <<EOF
 
 Next:
   mkdir my-gtm && cd my-gtm
-  ostack init --from b2b-founders     # or: ostack templates
-  then ask your agent: "set up my outbound playbook" (runs the ostack-setup skill)
+  ostack init
+  then ask your agent: "set up ostack" (it interviews you and customizes everything)
 EOF

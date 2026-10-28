@@ -3,7 +3,7 @@ import { addDays, newId } from "./db.ts";
 import { OstackError } from "./errors.ts";
 import { findSuppression, getLead, leadIdentity, type Lead } from "./leads.ts";
 import { checkMessage } from "./message-check.ts";
-import type { Channel, Playbook } from "./playbook.ts";
+import type { Limits } from "./settings.ts";
 
 export const RESERVATION_MINUTES = 30;
 export const OPEN_STATUSES = ["reserved", "drafted", "uncertain"] as const;
@@ -12,13 +12,22 @@ export type Outcome = (typeof OUTCOMES)[number];
 export const ATTEMPT_KINDS = ["touch", "reply"] as const;
 export type AttemptKind = (typeof ATTEMPT_KINDS)[number];
 
+/** Channels are open-ended (email, linkedin, sms, x, ...); only email and linkedin have contact checks. */
+export function checkChannel(value: string): string {
+  const channel = value.trim().toLowerCase();
+  if (!/^[a-z][a-z0-9_-]*$/.test(channel)) {
+    throw new OstackError("invalid_flag", "--channel must be a short lowercase name such as email or linkedin.");
+  }
+  return channel;
+}
+
 export type Attempt = {
   id: string;
   lead_id: string;
-  playbook: string;
+  campaign: string;
   kind: AttemptKind;
   step: number | null;
-  channel: Channel;
+  channel: string;
   status: "reserved" | "drafted" | "sent" | "not_sent" | "uncertain";
   subject: string | null;
   body: string;
@@ -38,25 +47,28 @@ export type Budget = {
   remaining_new: number;
 };
 
-/** Counts every touch that may have gone out, so unknown outcomes never let a run exceed its limits. */
-export function budget(db: Database, playbook: Playbook, now = new Date()): Budget {
+/**
+ * Limits protect the sender, so they count every campaign in the workspace, and every touch
+ * that may have gone out, so unknown outcomes never let a run exceed them.
+ */
+export function budget(db: Database, limits: Limits, now = new Date()): Budget {
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const row = db
-    .query<{ touches: number; new: number | null }, { playbook: string; since: string }>(
+    .query<{ touches: number; new: number | null }, { since: string }>(
       `SELECT COUNT(*) AS touches, SUM(CASE WHEN step = 1 THEN 1 ELSE 0 END) AS new
        FROM attempts
-       WHERE playbook = $playbook AND kind = 'touch' AND status != 'not_sent' AND reserved_at >= $since`,
+       WHERE kind = 'touch' AND status != 'not_sent' AND reserved_at >= $since`,
     )
-    .get({ playbook: playbook.name, since });
+    .get({ since });
   const touches = row?.touches ?? 0;
   const fresh = row?.new ?? 0;
-  const remainingTouches = Math.max(0, playbook.limits.touches_per_day - touches);
+  const remainingTouches = Math.max(0, limits.touches_per_day - touches);
   return {
     window: "rolling 24 hours",
     touches,
     new: fresh,
     remaining_touches: remainingTouches,
-    remaining_new: Math.max(0, Math.min(playbook.limits.new_per_day - fresh, remainingTouches)),
+    remaining_new: Math.max(0, Math.min(limits.new_per_day - fresh, remainingTouches)),
   };
 }
 
@@ -83,15 +95,12 @@ export function lastSent(db: Database, leadId: string): Attempt | null {
     .get({ lead: leadId });
 }
 
-export type ReserveInput = { leadId: string; kind: AttemptKind; channel: Channel; subject?: string; body: string };
+export type ReserveInput = { leadId: string; kind: AttemptKind; channel: string; subject?: string; body: string };
 
-export function reserve(db: Database, playbook: Playbook, input: ReserveInput, now = new Date()): Attempt {
+export function reserve(db: Database, limits: Limits, input: ReserveInput, now = new Date()): Attempt {
   return db
     .transaction(() => {
       const lead = getLead(db, input.leadId);
-      if (lead.playbook !== playbook.name) {
-        throw new OstackError("wrong_playbook", `Lead belongs to playbook "${lead.playbook}".`);
-      }
       const suppression = findSuppression(db, leadIdentity(lead));
       if (suppression) throw new OstackError("suppressed", `This ${suppression.kind} is suppressed: ${suppression.reason}.`);
       const open = openAttempt(db, lead.id);
@@ -103,27 +112,23 @@ export function reserve(db: Database, playbook: Playbook, input: ReserveInput, n
       if (lead.defer_until && lead.defer_until > now.toISOString()) {
         throw new OstackError("deferred", `Lead is deferred until ${lead.defer_until}: ${lead.defer_reason ?? "no reason"}.`);
       }
-      if (input.channel === "email" && !lead.email) throw new OstackError("no_contact", "Lead has no email address.");
-      if (input.channel === "linkedin" && !lead.linkedin_url) throw new OstackError("no_contact", "Lead has no LinkedIn URL.");
-      const step = input.kind === "touch" ? checkTouch(db, playbook, lead, input.channel, now) : checkReply(lead);
-      const problems = checkMessage(playbook, {
-        channel: input.channel,
-        subject: input.subject,
-        body: input.body,
-        needsSubject: step === 1,
-      });
+      const channel = checkChannel(input.channel);
+      if (channel === "email" && !lead.email) throw new OstackError("no_contact", "Lead has no email address.");
+      if (channel === "linkedin" && !lead.linkedin_url) throw new OstackError("no_contact", "Lead has no LinkedIn URL.");
+      const step = input.kind === "touch" ? checkTouch(db, limits, lead, now) : checkReply(lead);
+      const problems = checkMessage({ channel, subject: input.subject, body: input.body, needsSubject: step === 1 });
       if (problems.length > 0) throw new OstackError("message_rejected", "Fix the message and reserve again.", { problems });
       const id = newId("at");
       db.query(
-        `INSERT INTO attempts (id, lead_id, playbook, kind, step, channel, status, subject, body, reserved_at, expires_at)
-         VALUES ($id, $lead, $playbook, $kind, $step, $channel, 'reserved', $subject, $body, $now, $expires)`,
+        `INSERT INTO attempts (id, lead_id, campaign, kind, step, channel, status, subject, body, reserved_at, expires_at)
+         VALUES ($id, $lead, $campaign, $kind, $step, $channel, 'reserved', $subject, $body, $now, $expires)`,
       ).run({
         id,
         lead: lead.id,
-        playbook: playbook.name,
+        campaign: lead.campaign,
         kind: input.kind,
         step,
-        channel: input.channel,
+        channel,
         subject: input.subject?.trim() || null,
         body: input.body.trim(),
         now: now.toISOString(),
@@ -134,10 +139,11 @@ export function reserve(db: Database, playbook: Playbook, input: ReserveInput, n
     .immediate();
 }
 
-function checkTouch(db: Database, playbook: Playbook, lead: Lead, channel: Channel, now: Date): number {
+function checkTouch(db: Database, limits: Limits, lead: Lead, now: Date): number {
   const step = lead.step + 1;
-  const planned = playbook.sequence[step - 1];
-  if (!planned) throw new OstackError("sequence_complete", "Every step in this sequence has been sent.");
+  if (step > limits.max_touches) {
+    throw new OstackError("sequence_complete", `This lead already had ${lead.step} touches; max_touches is ${limits.max_touches}.`);
+  }
   if (step === 1 && lead.status !== "qualified") {
     throw new OstackError("not_qualified", `Lead is ${lead.status}; qualify it before the first touch.`);
   }
@@ -145,10 +151,7 @@ function checkTouch(db: Database, playbook: Playbook, lead: Lead, channel: Chann
     throw new OstackError("not_active", `Lead is ${lead.status}; follow-ups only go to leads still in sequence.`);
   }
   if (step > 1 && lead.next_due_at && lead.next_due_at > now.toISOString()) {
-    throw new OstackError("not_due", `Step ${step} is due at ${lead.next_due_at}.`);
-  }
-  if (channel !== planned.channel) {
-    throw new OstackError("wrong_channel", `Step ${step} uses ${planned.channel}.`);
+    throw new OstackError("not_due", `Touch ${step} is due at ${lead.next_due_at}.`);
   }
   // The company limit is a lasting fact about this lead, so report it before the temporary daily limit.
   if (step === 1 && lead.domain) {
@@ -158,31 +161,40 @@ function checkTouch(db: Database, playbook: Playbook, lead: Lead, channel: Chann
          WHERE l.domain = $domain AND a.lead_id != $lead AND a.status != 'not_sent'`,
       )
       .get({ domain: lead.domain, lead: lead.id });
-    if ((contacted?.n ?? 0) >= playbook.limits.per_company) {
-      throw new OstackError("company_limit", `${lead.domain} already has ${contacted?.n} contacted lead(s); the limit is ${playbook.limits.per_company}.`);
+    if ((contacted?.n ?? 0) >= limits.per_company) {
+      throw new OstackError("company_limit", `${lead.domain} already has ${contacted?.n} contacted lead(s); the limit is ${limits.per_company}.`);
     }
   }
-  const current = budget(db, playbook, now);
+  const current = budget(db, limits, now);
   if (current.remaining_touches === 0 || (step === 1 && current.remaining_new === 0)) {
-    throw new OstackError("daily_limit", "The playbook's daily limit is reached.", { budget: current });
+    throw new OstackError("daily_limit", "The daily limit is reached.", { budget: current });
   }
   return step;
 }
 
+const REPLYABLE = ["replied", "conversation", "meeting"];
+
 function checkReply(lead: Lead): null {
-  if (lead.status !== "replied") {
-    throw new OstackError("no_reply_pending", `Lead is ${lead.status}; replies are for leads waiting on an answer.`);
+  if (!REPLYABLE.includes(lead.status)) {
+    throw new OstackError("no_conversation", `Lead is ${lead.status}; replies are for leads already in a conversation.`);
   }
   return null;
 }
 
-export type ReceiptInput = { attemptId: string; outcome: Outcome; externalId?: string; threadId?: string; evidence?: string };
+export type ReceiptInput = {
+  attemptId: string;
+  outcome: Outcome;
+  externalId?: string;
+  threadId?: string;
+  evidence?: string;
+  /** For a sent touch: when the next one is due, or null when this was the last. */
+  next?: { inDays: number } | null;
+};
 
-export function receipt(db: Database, playbook: Playbook, input: ReceiptInput, now = new Date()) {
+export function receipt(db: Database, limits: Limits, input: ReceiptInput, now = new Date()) {
   return db
     .transaction(() => {
       const attempt = getAttempt(db, input.attemptId);
-      if (attempt.playbook !== playbook.name) throw new OstackError("wrong_playbook", `Attempt belongs to "${attempt.playbook}".`);
       if (!(OPEN_STATUSES as readonly string[]).includes(attempt.status)) {
         throw new OstackError("attempt_closed", `Attempt is already ${attempt.status}.`);
       }
@@ -191,6 +203,9 @@ export function receipt(db: Database, playbook: Playbook, input: ReceiptInput, n
       }
       if (input.outcome === "not_sent" && !input.evidence) {
         throw new OstackError("evidence_required", "Say how you confirmed nothing was sent (--evidence).");
+      }
+      if (input.outcome === "sent" && attempt.kind === "touch" && input.next === undefined) {
+        throw new OstackError("next_required", "Say when the next touch is due (--next-in-days <n>) or that this was the last (--last).");
       }
       const finished = input.outcome === "sent" || input.outcome === "not_sent";
       db.query(
@@ -206,23 +221,23 @@ export function receipt(db: Database, playbook: Playbook, input: ReceiptInput, n
         thread: input.threadId ?? null,
         evidence: input.evidence ?? null,
       });
-      if (input.outcome === "sent") applySent(db, playbook, attempt, now);
+      if (input.outcome === "sent") applySent(db, limits, attempt, input.next ?? null, now);
       return { attempt: getAttempt(db, attempt.id), lead: getLead(db, attempt.lead_id) };
     })
     .immediate();
 }
 
-function applySent(db: Database, playbook: Playbook, attempt: Attempt, now: Date): void {
+function applySent(db: Database, limits: Limits, attempt: Attempt, next: { inDays: number } | null, now: Date): void {
   const lead = getLead(db, attempt.lead_id);
   let status = lead.status;
   let step = lead.step;
   let nextDue: string | null = lead.next_due_at;
   if (attempt.kind === "touch" && attempt.step !== null) {
     step = Math.max(step, attempt.step);
-    const following = playbook.sequence[attempt.step];
     if (lead.status === "qualified" || lead.status === "active") {
-      status = following ? "active" : "completed";
-      nextDue = following ? addDays(now, following.wait_days).toISOString() : null;
+      const more = next !== null && step < limits.max_touches;
+      status = more ? "active" : "completed";
+      nextDue = more ? addDays(now, next.inDays).toISOString() : null;
     }
   } else if (lead.status === "replied") {
     status = "conversation";

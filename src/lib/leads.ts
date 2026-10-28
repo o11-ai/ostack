@@ -5,7 +5,7 @@ import { companyDomainFromEmail, normalizeDomain, normalizeEmail, normalizeLinke
 
 export const LEAD_STATUSES = [
   "new", // added, not yet researched
-  "qualified", // passed the playbook's rules, ready for the first touch
+  "qualified", // passed the campaign's rules, ready for the first touch
   "disqualified",
   "active", // in sequence
   "replied", // a human replied and is waiting on us
@@ -18,7 +18,7 @@ export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export type Lead = {
   id: string;
-  playbook: string;
+  campaign: string;
   status: LeadStatus;
   name: string | null;
   title: string | null;
@@ -30,6 +30,8 @@ export type Lead = {
   research: string | null;
   reason: string | null;
   evidence: string | null;
+  /** JSON object of anything else worth keeping: a CRM record id, a referral, custom columns. */
+  fields: string | null;
   step: number;
   next_due_at: string | null;
   defer_until: string | null;
@@ -47,11 +49,12 @@ export type LeadInput = {
   linkedin_url?: string;
   source?: string;
   research?: string;
+  fields?: Record<string, unknown>;
 };
 
 export type AddResult = {
   added: string[];
-  duplicates: { index: number; existing_id: string; playbook: string; status: LeadStatus }[];
+  duplicates: { index: number; existing_id: string; campaign: string; status: LeadStatus }[];
   suppressed: { index: number; kind: string; reason: string }[];
   invalid: { index: number; error: string }[];
 };
@@ -90,12 +93,12 @@ export function leadIdentity(lead: Lead): Identity {
   return { email: lead.email, linkedin: lead.linkedin_url, domain: lead.domain };
 }
 
-export function addLeads(db: Database, playbook: string, inputs: LeadInput[], now = new Date()): AddResult {
+export function addLeads(db: Database, campaign: string, inputs: LeadInput[], now = new Date()): AddResult {
   const result: AddResult = { added: [], duplicates: [], suppressed: [], invalid: [] };
   const timestamp = now.toISOString();
   const insert = db.query(
-    `INSERT INTO leads (id, playbook, status, name, title, company, domain, email, linkedin_url, source, research, created_at, updated_at)
-     VALUES ($id, $playbook, 'new', $name, $title, $company, $domain, $email, $linkedin, $source, $research, $now, $now)`,
+    `INSERT INTO leads (id, campaign, status, name, title, company, domain, email, linkedin_url, source, research, fields, created_at, updated_at)
+     VALUES ($id, $campaign, 'new', $name, $title, $company, $domain, $email, $linkedin, $source, $research, $fields, $now, $now)`,
   );
   db.transaction(() => {
     inputs.forEach((input, index) => {
@@ -117,7 +120,7 @@ export function addLeads(db: Database, playbook: string, inputs: LeadInput[], no
       }
       const existing = findLead(db, identity.email, identity.linkedin);
       if (existing) {
-        result.duplicates.push({ index, existing_id: existing.id, playbook: existing.playbook, status: existing.status });
+        result.duplicates.push({ index, existing_id: existing.id, campaign: existing.campaign, status: existing.status });
         return;
       }
       const suppression = findSuppression(db, identity);
@@ -128,7 +131,7 @@ export function addLeads(db: Database, playbook: string, inputs: LeadInput[], no
       const id = newId("ld");
       insert.run({
         id,
-        playbook,
+        campaign,
         name: clean(input.name),
         title: clean(input.title),
         company: clean(input.company),
@@ -137,6 +140,7 @@ export function addLeads(db: Database, playbook: string, inputs: LeadInput[], no
         linkedin: identity.linkedin,
         source: clean(input.source),
         research: clean(input.research),
+        fields: mergeFields(null, input.fields ?? {}),
         now: timestamp,
       });
       result.added.push(id);
@@ -146,6 +150,27 @@ export function addLeads(db: Database, playbook: string, inputs: LeadInput[], no
 }
 
 export type LeadUpdate = Partial<Omit<LeadInput, "source">>;
+
+/** Merges new keys into a lead's fields; a null value removes the key. */
+export function mergeFields(current: string | null, update: Record<string, unknown>): string | null {
+  const fields: Record<string, unknown> = { ...parseFields(current) };
+  for (const [key, value] of Object.entries(update)) {
+    if (value === null) delete fields[key];
+    else fields[key] = value;
+  }
+  return Object.keys(fields).length > 0 ? JSON.stringify(fields) : null;
+}
+
+export function parseFields(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  const parsed: unknown = JSON.parse(raw);
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+}
+
+/** The lead as printed: fields as an object rather than a JSON string. */
+export function present(lead: Lead) {
+  return { ...lead, fields: parseFields(lead.fields) };
+}
 
 export function updateLead(db: Database, id: string, update: LeadUpdate, now = new Date()): Lead {
   return db.transaction(() => {
@@ -165,7 +190,7 @@ export function updateLead(db: Database, id: string, update: LeadUpdate, now = n
     }
     db.query(
       `UPDATE leads SET email = $email, linkedin_url = $linkedin, domain = $domain,
-         name = $name, title = $title, company = $company, research = $research, updated_at = $now
+         name = $name, title = $title, company = $company, research = $research, fields = $fields, updated_at = $now
        WHERE id = $id`,
     ).run({
       id,
@@ -176,6 +201,7 @@ export function updateLead(db: Database, id: string, update: LeadUpdate, now = n
       title: update.title !== undefined ? clean(update.title) : lead.title,
       company: update.company !== undefined ? clean(update.company) : lead.company,
       research: update.research !== undefined ? clean(update.research) : lead.research,
+      fields: update.fields ? mergeFields(lead.fields, update.fields) : lead.fields,
       now: now.toISOString(),
     });
     return getLead(db, id);
@@ -230,7 +256,7 @@ export function deferLead(db: Database, id: string, until: Date, reason: string,
 export const SUPPRESSION_KINDS = ["email", "domain", "linkedin"] as const;
 export type SuppressionKind = (typeof SUPPRESSION_KINDS)[number];
 
-/** Suppressions are permanent: they block adding, qualifying and contacting matching leads in every playbook. */
+/** Suppressions are permanent: they block adding, qualifying and contacting matching leads in every campaign. */
 export function suppress(db: Database, kind: SuppressionKind, rawValue: string, reason: string, now = new Date()) {
   const value =
     kind === "email" ? normalizeEmail(rawValue) : kind === "linkedin" ? normalizeLinkedin(rawValue) : normalizeDomain(rawValue);
@@ -259,8 +285,8 @@ export function checkContact(db: Database, raw: { email?: string; linkedin?: str
   const linkedin = normalizeLinkedin(raw.linkedin);
   const domain = normalizeDomain(raw.domain) ?? companyDomainFromEmail(email);
   const leads = db
-    .query<Pick<Lead, "id" | "playbook" | "status" | "step" | "name">, Identity>(
-      `SELECT id, playbook, status, step, name FROM leads
+    .query<Pick<Lead, "id" | "campaign" | "status" | "step" | "name">, Identity>(
+      `SELECT id, campaign, status, step, name FROM leads
        WHERE email = $email OR linkedin_url = $linkedin OR domain = $domain`,
     )
     .all({ email, linkedin, domain });
@@ -274,25 +300,25 @@ export function checkContact(db: Database, raw: { email?: string; linkedin?: str
   };
 }
 
-export function listLeads(db: Database, filter: { playbook?: string; status?: string; search?: string; limit: number }) {
+export function listLeads(db: Database, filter: { campaign?: string; status?: string; search?: string; limit: number }) {
   const search = filter.search ? `%${filter.search.toLowerCase()}%` : null;
   return db
-    .query<Lead, { playbook: string | null; status: string | null; search: string | null; limit: number }>(
+    .query<Lead, { campaign: string | null; status: string | null; search: string | null; limit: number }>(
       `SELECT * FROM leads
-       WHERE ($playbook IS NULL OR playbook = $playbook)
+       WHERE ($campaign IS NULL OR campaign = $campaign)
          AND ($status IS NULL OR status = $status)
          AND ($search IS NULL OR lower(coalesce(name, '') || ' ' || coalesce(company, '') || ' ' || coalesce(email, '') || ' ' || coalesce(domain, '') || ' ' || coalesce(linkedin_url, '')) LIKE $search)
        ORDER BY updated_at DESC LIMIT $limit`,
     )
-    .all({ playbook: filter.playbook ?? null, status: filter.status ?? null, search, limit: filter.limit });
+    .all({ campaign: filter.campaign ?? null, status: filter.status ?? null, search, limit: filter.limit });
 }
 
-export function countByStatus(db: Database, playbook: string): Record<string, number> {
+export function countByStatus(db: Database, campaign: string): Record<string, number> {
   const rows = db
-    .query<{ status: string; n: number }, { playbook: string }>(
-      "SELECT status, COUNT(*) AS n FROM leads WHERE playbook = $playbook GROUP BY status",
+    .query<{ status: string; n: number }, { campaign: string }>(
+      "SELECT status, COUNT(*) AS n FROM leads WHERE campaign = $campaign GROUP BY status",
     )
-    .all({ playbook });
+    .all({ campaign });
   return Object.fromEntries(rows.map((row) => [row.status, row.n]));
 }
 

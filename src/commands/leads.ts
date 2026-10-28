@@ -11,15 +11,18 @@ import {
   getLead,
   LEAD_STATUSES,
   listLeads,
+  present,
   qualifyLead,
   updateLead,
   type LeadInput,
+  type LeadUpdate,
 } from "../lib/leads.ts";
 import { print } from "../lib/output.ts";
-import { isRecord } from "../lib/workspace.ts";
-import { openContext, selectedPlaybook } from "./context.ts";
+import { isRecord } from "../lib/paths.ts";
+import { campaignOf, openContext } from "./context.ts";
 
 const LEAD_FIELDS = ["name", "title", "company", "domain", "email", "linkedin_url", "source", "research"] as const;
+const KNOWN = new Set<string>(LEAD_FIELDS);
 
 export async function leadsCommand(args: Args): Promise<void> {
   const sub = args.positionals[1];
@@ -27,10 +30,10 @@ export async function leadsCommand(args: Args): Promise<void> {
   const { db } = context;
   switch (sub) {
     case "add": {
-      const { playbook } = await selectedPlaybook(context, args);
+      const campaign = campaignOf(args);
       const file = required(args, "input-file");
       const inputs = parseLeadFile(await readFileOrStdin(file), file);
-      print({ playbook: playbook.name, ...addLeads(db, playbook.name, inputs) });
+      print({ campaign, ...addLeads(db, campaign, inputs) });
       return;
     }
     case "list": {
@@ -38,33 +41,36 @@ export async function leadsCommand(args: Args): Promise<void> {
       if (status && !(LEAD_STATUSES as readonly string[]).includes(status)) {
         throw new OstackError("invalid_flag", `--status must be one of: ${LEAD_STATUSES.join(", ")}.`);
       }
-      print(listLeads(db, { playbook: optional(args, "playbook"), status, search: optional(args, "search"), limit: integer(args, "limit", 50) }));
+      const campaign = optional(args, "campaign");
+      print(listLeads(db, { campaign, status, search: optional(args, "search"), limit: integer(args, "limit", 50) }).map(present));
       return;
     }
     case "show": {
       const lead = getLead(db, required(args, "id"));
       const attempts = db.query("SELECT * FROM attempts WHERE lead_id = $lead ORDER BY reserved_at").all({ lead: lead.id });
-      print({ lead, attempts, events: listEvents(db, lead.id) });
+      print({ lead: present(lead), attempts, events: listEvents(db, lead.id) });
       return;
     }
     case "update": {
-      const update: Partial<Record<(typeof LEAD_FIELDS)[number], string>> = {};
+      const update: LeadUpdate = {};
       for (const field of LEAD_FIELDS) {
         if (field === "source") continue;
         const value = field === "research" ? await textInput(args, "research") : optional(args, field.replace("_", "-"));
         if (value !== undefined) update[field] = value;
       }
-      print(updateLead(db, required(args, "id"), update));
+      const fields = optional(args, "fields");
+      if (fields !== undefined) update.fields = parseObject(fields, "--fields");
+      print(present(updateLead(db, required(args, "id"), update)));
       return;
     }
     case "qualify": {
       const status = oneOf(args, "status", ["qualified", "disqualified"] as const);
-      print(qualifyLead(db, required(args, "id"), status, required(args, "reason"), required(args, "evidence")));
+      print(present(qualifyLead(db, required(args, "id"), status, required(args, "reason"), required(args, "evidence"))));
       return;
     }
     case "close": {
       const status = oneOf(args, "status", CLOSING_STATUSES);
-      print(closeLead(db, required(args, "id"), status, required(args, "reason")));
+      print(present(closeLead(db, required(args, "id"), status, required(args, "reason"))));
       return;
     }
     default:
@@ -87,13 +93,26 @@ function parseLeadFile(text: string, path: string): LeadInput[] {
   return rows.map((row, index) => {
     if (!isRecord(row)) throw new OstackError("invalid_input", `Row ${index} is not an object.`);
     const lead: LeadInput = {};
-    for (const field of LEAD_FIELDS) {
-      const value = row[field];
-      if (value === undefined || value === null || value === "") continue;
-      lead[field] = typeof value === "string" ? value : JSON.stringify(value);
+    const extra: Record<string, unknown> = isRecord(row.fields) ? { ...row.fields } : {};
+    for (const [key, value] of Object.entries(row)) {
+      if (value === undefined || value === null || value === "" || key === "fields") continue;
+      if (KNOWN.has(key)) lead[key as (typeof LEAD_FIELDS)[number]] = typeof value === "string" ? value : JSON.stringify(value);
+      else extra[key] = value;
     }
+    if (Object.keys(extra).length > 0) lead.fields = extra;
     return lead;
   });
+}
+
+function parseObject(text: string, flag: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new OstackError("invalid_flag", `${flag} must be a JSON object, for example '{"crm_id":"123"}'.`);
+  }
+  if (!isRecord(parsed)) throw new OstackError("invalid_flag", `${flag} must be a JSON object.`);
+  return parsed;
 }
 
 function parseJson(text: string): unknown[] {

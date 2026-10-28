@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { openLedger } from "../lib/db.ts";
-import { OstackError } from "../lib/errors.ts";
 import { print } from "../lib/output.ts";
-import { EXAMPLE_MARKER, loadPlaybook } from "../lib/playbook.ts";
-import { listPlaybooks, loadWorkspace, REPO_ROOT } from "../lib/workspace.ts";
+import { REPO_ROOT } from "../lib/paths.ts";
+import { compareVersions } from "../lib/version.ts";
+import { CUSTOM_DIR, loadWorkspace } from "../lib/workspace.ts";
+import { setupStatus } from "./customize.ts";
 
 type Check = { check: string; status: "ok" | "warn" | "fail"; detail: string };
 
@@ -17,13 +17,12 @@ export const SKILL_HOSTS: Record<string, string> = {
   gemini: ".gemini/skills",
 };
 
-const MIN_BUN = [1, 2, 21];
+const MIN_BUN = "1.2.21";
 
 export async function doctorCommand(): Promise<void> {
   const checks: Check[] = [];
-  const bun = Bun.version.split(".").map(Number);
-  const bunOk = compare(bun, MIN_BUN) >= 0;
-  checks.push({ check: "bun", status: bunOk ? "ok" : "fail", detail: `${Bun.version} (needs ${MIN_BUN.join(".")}+)` });
+  const bunOk = compareVersions(Bun.version, MIN_BUN) >= 0;
+  checks.push({ check: "bun", status: bunOk ? "ok" : "fail", detail: `${Bun.version} (needs ${MIN_BUN}+)` });
 
   const onPath = Bun.which("ostack");
   checks.push({
@@ -33,7 +32,7 @@ export async function doctorCommand(): Promise<void> {
   });
 
   const hosts = Object.entries(SKILL_HOSTS)
-    .filter(([, dir]) => existsSync(join(homedir(), dir, "cold-outbound", "SKILL.md")))
+    .filter(([, dir]) => existsSync(join(homedir(), dir, "outbound", "SKILL.md")))
     .map(([host]) => host);
   checks.push({
     check: "skills installed",
@@ -50,39 +49,26 @@ export async function doctorCommand(): Promise<void> {
     } catch (error) {
       checks.push({ check: "ledger", status: "fail", detail: message(error) });
     }
-    const playbooks = await listPlaybooks(workspace);
-    if (playbooks.length === 0) checks.push({ check: "playbooks", status: "fail", detail: 'None. Run "ostack init".' });
-    for (const name of playbooks) {
-      try {
-        const loaded = await loadPlaybook(workspace, name);
-        const untouched = [];
-        for (const path of [join(loaded.dir, "playbook.yaml"), loaded.offerPath, loaded.voicePath]) {
-          if ((await readFile(path, "utf8")).includes(EXAMPLE_MARKER)) untouched.push(path.split("/").pop());
-        }
-        checks.push({
-          check: `playbook ${name}`,
-          status: untouched.length > 0 ? "warn" : "ok",
-          detail: untouched.length > 0 ? `Still the template: edit ${untouched.join(", ")}.` : `valid, mode ${loaded.playbook.mode}`,
-        });
-      } catch (error) {
-        const details = error instanceof OstackError ? error.details?.errors : undefined;
-        checks.push({ check: `playbook ${name}`, status: "fail", detail: Array.isArray(details) ? details.join(" ") : message(error) });
-      }
+    if (!existsSync(join(workspace.root, CUSTOM_DIR, "about.md"))) {
+      checks.push({ check: "setup", status: "warn", detail: 'No custom/about.md yet. Ask your agent to "set up ostack".' });
     }
+    const status = await setupStatus(workspace);
+    const open = [
+      status.pending_questions.length > 0 && `${status.pending_questions.length} setup question(s) to ask`,
+      status.changed_defaults.length > 0 && `${status.changed_defaults.length} customized step(s) whose default changed`,
+      status.unknown_steps.length > 0 && `${status.unknown_steps.length} note(s) for unknown steps`,
+    ].filter(Boolean);
+    checks.push({
+      check: "customizations",
+      status: open.length > 0 ? "warn" : "ok",
+      detail: open.length > 0 ? `${open.join("; ")}. Run the ostack-setup skill to review.` : `up to date with ${status.version}`,
+    });
   } catch (error) {
     checks.push({ check: "workspace", status: "warn", detail: message(error) });
   }
 
   print({ ok: checks.every((check) => check.status !== "fail"), checks });
   if (checks.some((check) => check.status === "fail")) process.exitCode = 1;
-}
-
-function compare(a: number[], b: number[]): number {
-  for (let index = 0; index < b.length; index++) {
-    const diff = (a[index] ?? 0) - (b[index] ?? 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
 }
 
 function message(error: unknown): string {
