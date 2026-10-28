@@ -24,7 +24,7 @@ This skill is a baseline. It is made of named steps, each with a default, and th
 
 The first time you reach a step in a run, run `ostack context <step>` (once per step per run is enough; the notes do not change mid-run). It returns the step's `default`, then the user's `before`, `notes` and `after` for it, lowest priority first. Do the `before` notes, then the step as the default describes, refined by the notes (where they conflict, the later note wins), then the `after` notes. If a note replaces the default entirely, follow the note.
 
-Run `ostack help` for exact command flags.
+Run `ostack help` (or `ostack <command> --help`) for exact flags. The user counts as present unless the run's prompt says it is scheduled; when present, ask them about anything needing their judgment instead of guessing.
 
 ## Rules no customization can change
 

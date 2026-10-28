@@ -72,7 +72,7 @@ export async function receiptCommand(args: Args): Promise<void> {
       evidence: optional(args, "evidence"),
       next,
     });
-  print({ attempt: result.attempt, lead: present(result.lead) });
+  print({ attempt: result.attempt, lead: present(result.lead), next_touch_due: result.lead.next_due_at });
 }
 
 export async function observeCommand(args: Args): Promise<void> {

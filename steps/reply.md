@@ -2,7 +2,7 @@
 summary: How to answer people who replied.
 used_by: [follow-ups]
 changed: 0.3.0
-change: Questions the notes cannot answer (often pricing) go to the user instead of being dodged.
+change: Questions the notes cannot answer (often pricing) go to the user instead of being dodged, and opt-outs get no reply by default.
 ---
 Read the whole thread first, then answer what they actually asked, in the same thread, in the user's voice. Reserve with `--kind reply`.
 
@@ -10,7 +10,7 @@ Read the whole thread first, then answer what they actually asked, in the same t
 - A question: answer plainly and briefly with facts from the user's notes or their own public pages. Never withhold information to force a call. When the answer is not there (often pricing), ask the user if they are present; otherwise handle it as needing their judgment (below).
 - An objection: acknowledge it, answer honestly, leave the door open. Do not argue.
 - "Not now" or "later": thank them, then `ostack defer --lead <id> --until <date>`. With no date, `ostack leads close --status completed`.
-- "No" or "stop": a short, polite acknowledgment at most, then `observe --type opt_out`.
+- "No" or "stop": `observe --type opt_out` and send nothing, unless the user's notes ask for a one-line acknowledgment.
 - A referral: thank them and add the new person with `leads add`, noting the referral in `fields`. That first message is not cold, so say how you got their name.
 - Anything needing the user's judgment (pricing, legal, custom terms): draft it, receipt `drafted`, and list it in the report.
 

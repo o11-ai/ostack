@@ -2,9 +2,9 @@
 summary: Read new messages and record what happened before acting on anything.
 used_by: [follow-ups]
 changed: 0.3.0
-change: Notes that bounces and opt-outs suppress automatically.
+change: Reads mail from inbox_since in due, records message text verbatim, and notes that bounces and opt-outs suppress automatically.
 ---
-Check every channel the user sends from (the mailbox, LinkedIn messages if used) for anything new from leads since the last check. Match each message to a lead with `ostack leads list --search <email or name>`, then record it with the provider's message ID:
+Check every channel the user sends from (the mailbox, LinkedIn messages if used) for anything from leads since `inbox_since` in `ostack due` (re-reading older mail is harmless). Match each message to a lead with `ostack leads list --search <email or name>`, then record it with the provider's message ID and the message text exactly as received (`--body`; keep your own comments for the report):
 
 | What arrived | Record as |
 | --- | --- |
