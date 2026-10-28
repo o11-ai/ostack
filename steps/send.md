@@ -12,4 +12,6 @@ Every message, without exception:
 4. Immediately run `ostack receipt --attempt <id> --outcome sent|drafted|not_sent|uncertain` with the provider's message and thread IDs. A sent touch also needs `--next-in-days <n>` or `--last` (see the follow-up step).
 5. If anything fails mid-send and you cannot prove what happened, receipt `uncertain`. Never send again to "fix" it; the next run reconciles it against the real Sent folder.
 
-Reconcile items (`next: reconcile`): open the real Sent folder, thread or conversation, then receipt `sent` (with IDs) or `not_sent` (with how you checked). Drafts the user sent themselves count as `sent`.
+Reconcile items (`next: reconcile`): open the real Sent folder, thread or conversation, then receipt `sent` (with IDs) or `not_sent` (with how you checked).
+
+Drafts (`drafts` in `due`, draft mode): once per run, check whether the user sent each one. Receipt a sent one `sent` with its IDs, adding `--next-in-days <n>` or `--last` for a touch. Receipt a deleted one `not_sent`. Leave one still sitting in drafts as it is. Drafts never hold up the rest of the queue.

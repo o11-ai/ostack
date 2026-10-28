@@ -1,6 +1,6 @@
 ---
 name: ostack-setup
-description: Set up and customize ostack by talking to the user. Interviews them, writes plain-language notes that change how outbound and follow-ups work (their offer, voice, templates, lead sources, email tool, CRM, calendar, limits), tests each change for real, saves corrections as lasting rules, and reviews what is new after an ostack upgrade. Use for "set up ostack", "change how outbound works", "use my template", "log everything in my CRM", "send from my Outlook", "remember this", or "review ostack updates".
+description: Set up and customize ostack by talking to the user. Interviews them, writes plain-language notes that change how outbound and follow-ups work (their offer, voice, templates, lead sources, email tool, CRM, calendar, limits), tests each change for real, saves corrections as lasting rules, and reviews what is new after an ostack upgrade. Use whenever someone wants to set up or change their outreach: "set up ostack", "use my email template", "log everything in Lightfield/HubSpot", "send from my Outlook", "we sell to dentists now", "stop mentioning pricing", "remember this", "add a fundraising campaign", or "review ostack updates", even if they never say "ostack". Running outreach itself belongs to the outbound and follow-ups skills.
 ---
 
 # ostack setup

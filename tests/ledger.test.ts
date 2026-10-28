@@ -150,3 +150,26 @@ describe("ledger", () => {
     expect(Bun.file(`${path}.v1-backup`).size).toBeGreaterThan(0);
   });
 });
+
+describe("due scopes", () => {
+  test("each skill sees only its own queues, and drafts never block", () => {
+    const { db, state, limits } = setup();
+    const [replied, fresh] = addLeads(db, "main", [{ email: "a@one.io" }, { email: "b@two.io" }]).added;
+    for (const id of [replied!, fresh!]) qualifyLead(db, id, "qualified", "fits", "evidence");
+    const first = reserve(db, limits, { leadId: replied!, kind: "touch", channel: "email", subject: "q", body: BODY });
+    receipt(db, limits, { attemptId: first.id, outcome: "sent", externalId: "m1", next: { inDays: 3 } });
+    observe(db, { leadId: replied!, type: "reply", externalId: "in-1" });
+
+    expect(due(db, state, "main", 10, new Date(), "all").next).toBe("replies");
+    expect(due(db, state, "main", 10, new Date(), "outbound").next).toBe("new");
+    expect(due(db, state, "main", 10, new Date(), "outbound").replies).toHaveLength(0);
+
+    const draft = reserve(db, limits, { leadId: fresh!, kind: "touch", channel: "email", subject: "q", body: BODY });
+    receipt(db, limits, { attemptId: draft.id, outcome: "drafted" });
+    const outbound = due(db, state, "main", 10, new Date(), "outbound");
+    expect(outbound.drafts.map((item) => item.id)).toEqual([draft.id]);
+    expect(outbound.next).toBe("find");
+    observe(db, { leadId: replied!, type: "meeting", externalId: "ev-1" });
+    expect(due(db, state, "main", 10, new Date(), "follow-ups").next).toBe("done");
+  });
+});

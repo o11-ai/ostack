@@ -1,6 +1,6 @@
 import { integer, oneOf, optional, parseDate, required, textInput, type Args } from "../lib/args.ts";
 import { ATTEMPT_KINDS, budget, OUTCOMES, receipt, reserve } from "../lib/attempts.ts";
-import { due } from "../lib/due.ts";
+import { due, DUE_SCOPES } from "../lib/due.ts";
 import { OstackError } from "../lib/errors.ts";
 import { checkEventType, observe } from "../lib/events.ts";
 import { countByStatus, deferLead, getLead, present, suppress, SUPPRESSION_KINDS } from "../lib/leads.ts";
@@ -9,7 +9,8 @@ import { campaignOf, openContext } from "./context.ts";
 
 export async function dueCommand(args: Args): Promise<void> {
   const { workspace, db } = await openContext();
-  print(due(db, workspace.state, campaignOf(args), integer(args, "limit", 10)));
+  const scope = optional(args, "for") === undefined ? "all" : oneOf(args, "for", DUE_SCOPES);
+  print(due(db, workspace.state, campaignOf(args), integer(args, "limit", 10), new Date(), scope));
 }
 
 export async function statusCommand(args: Args): Promise<void> {

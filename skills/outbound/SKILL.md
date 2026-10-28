@@ -1,6 +1,6 @@
 ---
 name: outbound
-description: Find, qualify and research new leads, then write and send personalized first messages, all customized to the user's own offer, voice, tools and rules and recorded in a local ledger so nobody is contacted twice. Use when someone asks to run outbound, find leads, prospect, send cold emails or LinkedIn messages, draft example outreach, or run a scheduled ostack outbound run. Replies and follow-ups belong to the follow-ups skill; setup and changes to how this works belong to ostack-setup.
+description: Find, qualify and research new leads, then write and send personalized first messages, customized to the user's own offer, voice, tools and rules and recorded in a local ledger so nobody is contacted twice. Use whenever someone wants to run outbound, find leads or prospects, build a lead list, send cold emails or LinkedIn messages, "get us some customers/candidates/investors", draft example outreach, or run a scheduled ostack outbound run, even if they never say "ostack". Replies and follow-ups belong to the follow-ups skill; setting up or changing how outreach works belongs to ostack-setup.
 ---
 
 # Outbound
@@ -9,21 +9,20 @@ This skill is a baseline. It is made of named steps, each with a default, and th
 
 ## Start every run
 
-1. `cd` to the workspace (the folder with `ostack.json`) and run `ostack doctor`. Stop on any `fail`. If it says setup is missing or has open items and someone is present, offer to run the ostack-setup skill first. In a scheduled run, carry on and mention it in the report.
+1. `cd` to the workspace (the folder with `ostack.json`) and run `ostack doctor`. Stop on any `fail`. If there is no workspace, or no `custom/about.md`, there is nothing to run yet: hand over to the ostack-setup skill (or, in a scheduled run, stop and report it). If setup only has open items, offer ostack-setup when someone is present; in a scheduled run, carry on and mention it in the report.
 2. Run `ostack context` and read every general note: who the user is, what they offer, their voice, learnings, and anything else they told you. Note the mode and limits.
-3. Run `ostack due` and work the queue it returns in order. Call `due` again after each batch, until `next` is `done` or every source is exhausted.
+3. Run `ostack due --for outbound` and work the queue it returns in order. Call it again after each batch, until `next` is `done` or every source is exhausted. (`--for outbound` leaves replies and follow-ups to the follow-ups skill, while still holding back their share of the daily budget.)
 
 | `next` | Steps to run |
 | --- | --- |
 | `reconcile` | `send` (its reconcile section) |
-| `replies`, `follow_ups` | Not this skill. Leave them for follow-ups. If they are all that is left, finish. |
 | `new` | `write`, then `send`, then `record` for each lead |
 | `qualify` | `qualify`, then `research` for each one that passes |
 | `find` | `find` |
 
 ## Running a step
 
-Before each step, run `ostack context <step>` once per run. It returns the step's `default`, then the user's `before`, `notes` and `after` for it, lowest priority first. Do the `before` notes, then the step as the default describes, refined by the notes (where they conflict, the later note wins), then the `after` notes. If a note replaces the default entirely, follow the note.
+The first time you reach a step in a run, run `ostack context <step>` (once per step per run is enough; the notes do not change mid-run). It returns the step's `default`, then the user's `before`, `notes` and `after` for it, lowest priority first. Do the `before` notes, then the step as the default describes, refined by the notes (where they conflict, the later note wins), then the `after` notes. If a note replaces the default entirely, follow the note.
 
 Run `ostack help` for exact command flags.
 

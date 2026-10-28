@@ -20,12 +20,19 @@ export type DueLead = {
 
 export type NextAction = "reconcile" | "replies" | "follow_ups" | "new" | "qualify" | "find" | "done";
 
+/** Which skill is asking. Each sees only its own queues, so one never stalls on the other's work. */
+export const DUE_SCOPES = ["all", "outbound", "follow-ups"] as const;
+export type DueScope = (typeof DUE_SCOPES)[number];
+
 export type Due = {
   campaign: string;
   mode: State["mode"];
   budget: Budget;
   next: NextAction;
+  /** Attempts whose outcome is unknown: settle these before anything else. */
   reconcile: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at" | "expires_at">[];
+  /** Drafts waiting on the user. Check once per run whether they were sent; they never block the queue. */
+  drafts: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at" | "expires_at">[];
   replies: DueLead[];
   follow_ups: DueLead[];
   new: DueLead[];
@@ -33,7 +40,7 @@ export type Due = {
 };
 
 /** The work queue for one campaign, in the order it should be handled. */
-export function due(db: Database, state: State, campaign: string, limit: number, now = new Date()): Due {
+export function due(db: Database, state: State, campaign: string, limit: number, now = new Date(), scope: DueScope = "all"): Due {
   const at = now.toISOString();
   const current = budget(db, state.limits, now);
   const ready = `(defer_until IS NULL OR defer_until <= $now)
@@ -47,22 +54,30 @@ export function due(db: Database, state: State, campaign: string, limit: number,
           )
           .all({ campaign, now: at, limit: take });
 
-  const reconcile = db
+  const unsettled = db
     .query<Due["reconcile"][number], { campaign: string; now: string }>(
       `SELECT id, lead_id, status, channel, subject, reserved_at, expires_at FROM attempts
        WHERE campaign = $campaign AND (status IN ('uncertain', 'drafted') OR (status = 'reserved' AND expires_at <= $now))
        ORDER BY reserved_at`,
     )
     .all({ campaign, now: at });
+  const reconcile = unsettled.filter((attempt) => attempt.status !== "drafted");
+  const drafts = unsettled.filter((attempt) => attempt.status === "drafted");
 
-  const replies = select(`status = 'replied' AND ${ready}`, "updated_at", limit);
-  const followUps = select(`status = 'active' AND next_due_at <= $now AND ${ready}`, "next_due_at", Math.min(limit, current.remaining_touches));
-  const fresh = select(
-    `status = 'qualified' AND step = 0 AND ${ready}`,
-    "updated_at",
-    Math.min(limit, current.remaining_new, current.remaining_touches - followUps.length),
-  );
-  const toQualify = select(`status = 'new' AND (defer_until IS NULL OR defer_until <= $now)`, "created_at", limit);
+  const conversations = scope !== "outbound";
+  const prospecting = scope !== "follow-ups";
+  const replies = conversations ? select(`status = 'replied' AND ${ready}`, "updated_at", limit) : [];
+  // Due follow-ups always hold back their share of the budget, even when outbound is the one asking.
+  const followUpsDue = select(`status = 'active' AND next_due_at <= $now AND ${ready}`, "next_due_at", Math.min(limit, current.remaining_touches));
+  const followUps = conversations ? followUpsDue : [];
+  const fresh = prospecting
+    ? select(
+        `status = 'qualified' AND step = 0 AND ${ready}`,
+        "updated_at",
+        Math.min(limit, current.remaining_new, current.remaining_touches - followUpsDue.length),
+      )
+    : [];
+  const toQualify = prospecting ? select(`status = 'new' AND (defer_until IS NULL OR defer_until <= $now)`, "created_at", limit) : [];
   const view = (lead: Lead) => project(db, lead);
 
   const queues = {
@@ -72,7 +87,7 @@ export function due(db: Database, state: State, campaign: string, limit: number,
     new: fresh.map(view),
     to_qualify: toQualify.map(view),
   };
-  return { campaign, mode: state.mode, budget: current, next: nextAction(queues, current), ...queues };
+  return { campaign, mode: state.mode, budget: current, next: nextAction(queues, current, prospecting), ...queues, drafts };
 }
 
 function project(db: Database, lead: Lead): DueLead {
@@ -95,10 +110,11 @@ function project(db: Database, lead: Lead): DueLead {
   return view;
 }
 
-function nextAction(queues: Omit<Due, "campaign" | "mode" | "budget" | "next">, current: Budget): NextAction {
+function nextAction(queues: Omit<Due, "campaign" | "mode" | "budget" | "next" | "drafts">, current: Budget, prospecting: boolean): NextAction {
   if (queues.reconcile.length > 0) return "reconcile";
   if (queues.replies.length > 0) return "replies";
   if (queues.follow_ups.length > 0) return "follow_ups";
+  if (!prospecting) return "done";
   if (queues.new.length > 0) return "new";
   if (current.remaining_new === 0) return "done";
   if (queues.to_qualify.length > 0) return "qualify";

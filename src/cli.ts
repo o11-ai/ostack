@@ -33,7 +33,7 @@ Workspace and customization
   upgrade                                      pull the latest ostack (your workspace is never touched)
 
 Each run
-  due [--campaign <name>] [--limit 10]          what to do next, in order
+  due --for outbound|follow-ups [--campaign] [--limit 10]   what that skill should do next, in order
   status [--campaign <name>]                    lead counts and today's budget
   check --email|--linkedin|--domain <value>     history and suppression before researching
 
