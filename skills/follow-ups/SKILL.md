@@ -11,7 +11,7 @@ This skill is a baseline made of named steps with defaults; the user customizes 
 
 1. `cd` to the workspace (the folder with `ostack.json`; if you are not in one, the error lists known workspaces) and run `ostack doctor`. If your shell does not keep the folder between commands, start each command with `cd <workspace> &&`. Stop on any `fail`. With no workspace there is nothing to follow up: hand over to the ostack-setup skill (or, in a scheduled run, stop and report it). Open setup items are for ostack-setup too: offer it when someone is present; otherwise mention it in the report.
 2. Run `ostack context` and read every general note: who the user is, what they offer, their voice, learnings, and anything else they told you.
-3. Run the `inbox` step first, every run, so the queue reflects what just arrived.
+3. Run the `inbox` step first, every run. `ostack due` only knows what has been recorded, so it shows no replies until the inbox step records them.
 4. Run `ostack due --for follow-ups` and work the queue in order, calling it again after each batch, until `next` is `done`.
 
 | `next` | Steps to run |
