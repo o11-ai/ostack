@@ -12,6 +12,6 @@ Read the whole thread first, then answer what they actually asked, in the same t
 - "Not now" or "later": thank them, then `ostack defer --lead <id> --until <date>`. With no date, `ostack leads close --status completed`.
 - "No" or "stop": `observe --type opt_out` and send nothing, unless the user's notes ask for a one-line acknowledgment.
 - A referral: thank them and add the new person with `leads add`, noting the referral in `fields`. That first message is not cold, so say how you got their name.
-- Anything needing the user's judgment (pricing, legal, custom terms): draft it, receipt `drafted`, and list it in the report.
+- Anything needing the user's judgment (pricing, legal, custom terms) when they are not present: draft it even in send mode, receipt `drafted`, and list it in the report. With no tool that holds drafts, defer the lead with the question as the reason.
 
 A warm thread that goes quiet can get one short nudge after about two days if it helps them; then let it rest.
