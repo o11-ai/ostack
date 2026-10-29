@@ -26,13 +26,15 @@ export type DueScope = (typeof DUE_SCOPES)[number];
 
 export type Due = {
   campaign: string;
+  /** Read the inbox from here: the first message in any thread a reply could still arrive on. Null when none is open. */
+  inbox_since: string | null;
   mode: State["mode"];
   budget: Budget;
   next: NextAction;
   /** Attempts whose outcome is unknown: settle these before anything else. */
   reconcile: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at" | "expires_at">[];
-  /** Drafts waiting on the user. Check once per run whether they were sent; they never block the queue. */
-  drafts: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at" | "expires_at">[];
+  /** Drafts waiting on the user. Check once per run whether they were sent; they never block the queue or expire. */
+  drafts: Pick<Attempt, "id" | "lead_id" | "status" | "channel" | "subject" | "reserved_at">[];
   replies: DueLead[];
   follow_ups: DueLead[];
   new: DueLead[];
@@ -62,7 +64,7 @@ export function due(db: Database, state: State, campaign: string, limit: number,
     )
     .all({ campaign, now: at });
   const reconcile = unsettled.filter((attempt) => attempt.status !== "drafted");
-  const drafts = unsettled.filter((attempt) => attempt.status === "drafted");
+  const drafts = unsettled.filter((attempt) => attempt.status === "drafted").map(({ expires_at: _expires, ...draft }) => draft);
 
   const conversations = scope !== "outbound";
   const prospecting = scope !== "follow-ups";
@@ -87,7 +89,21 @@ export function due(db: Database, state: State, campaign: string, limit: number,
     new: fresh.map(view),
     to_qualify: toQualify.map(view),
   };
-  return { campaign, mode: state.mode, budget: current, next: nextAction(queues, current, prospecting), ...queues, drafts };
+  const open = db
+    .query<{ since: string | null }, { campaign: string }>(
+      `SELECT MIN(a.completed_at) AS since FROM attempts a JOIN leads l ON l.id = a.lead_id
+       WHERE l.campaign = $campaign AND a.status = 'sent' AND l.status IN ('active', 'replied', 'conversation', 'meeting', 'completed')`,
+    )
+    .get({ campaign });
+  return {
+    campaign,
+    inbox_since: open?.since ?? null,
+    mode: state.mode,
+    budget: current,
+    next: nextAction(queues, current, prospecting),
+    ...queues,
+    drafts,
+  };
 }
 
 function project(db: Database, lead: Lead): DueLead {
@@ -110,7 +126,7 @@ function project(db: Database, lead: Lead): DueLead {
   return view;
 }
 
-function nextAction(queues: Omit<Due, "campaign" | "mode" | "budget" | "next" | "drafts">, current: Budget, prospecting: boolean): NextAction {
+function nextAction(queues: Omit<Due, "campaign" | "inbox_since" | "mode" | "budget" | "next" | "drafts">, current: Budget, prospecting: boolean): NextAction {
   if (queues.reconcile.length > 0) return "reconcile";
   if (queues.replies.length > 0) return "replies";
   if (queues.follow_ups.length > 0) return "follow_ups";

@@ -1,0 +1,15 @@
+{
+  "about": "I'm Sam Rivera, founder of Tracewell (tracewell.example). We do API monitoring for fintech teams: we watch every third-party API in your payment flow (processors, banks, KYC) and alert before customers notice. I want 15 minute intro calls with engineering leaders. Proof: Quillbank, Northbeam Pay and Coinlane use us; Northbeam Pay cut time-to-detect on upstream incidents from 22 min to 3. Never claim we're SOC 2 certified, we're still in the audit. Don't bring up pricing in first emails. Pricing starts at $1,500/month; fine to tell people who ask.",
+  "who": "VP Eng, Head of Platform, Eng Managers, Directors of Eng, SRE leads at fintech companies that depend on third-party financial APIs. 20 to 500 employees. US and UK only. Exclude: agencies and consultancies, our existing customers (Quillbank, Northbeam Pay, Coinlane), competitors (Clearwire Monitoring, anything selling API monitoring). CTOs count too at companies under 100 people. If a company sells financial APIs itself, that counts as depending on financial APIs.",
+  "sources": "I have a CSV at ~/leads.csv I exported. Also feel free to dig around on the web for fintechs that just raised money or had outages; use the `web` tool, it's how you get online here.",
+  "voice": "Lowercase, short, no fluff. Here's my template, always use it:\n\nsubject: [company] + upstream outages\n\nhey [first name], saw [specific recent thing]. [one line on why upstream API monitoring matters for that]. worth 15 min next week?\n\nsam\n\nSign off is just 'sam'. Never use exclamation marks.",
+  "sending": "Send from sam@tracewell.example. The `mail` tool is connected to that mailbox. Do drafts first while we test, but once I've seen a couple of good ones switch it to sending for real.",
+  "follow-ups": "Two follow-ups max. First after 2 days, second 5 days after that. Same thread. The last one should just close the loop politely.",
+  "crm": "Yes, we use Pipedrift and the `crm` tool talks to it. When the first email goes out create the person at stage Contacted. Replies move to Replied with the reply text as a note. Meetings move to Meeting. Opt-outs and bounces to Lost.",
+  "meetings": "Offer 2-3 times from my calendar (the `cal` tool), 15 minutes, I'm in New York. Only send the invite once they pick a time. If they pick a time, book it.",
+  "limits": "Keep it small while we test: 5 new people a day, 20 messages total, 1 per company.",
+  "report": "Just tell me in chat.",
+  "schedule": "Not yet, I'll run it by hand for now.",
+  "other": "Use your judgment, the default is fine.",
+  "approve": "Looks good to me, go with it. If something's off I'll tell you."
+}

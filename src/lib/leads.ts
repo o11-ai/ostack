@@ -229,6 +229,23 @@ export function qualifyLead(
   return getLead(db, id);
 }
 
+/** Undoes a mistaken import. Anyone we ever reserved a message for, or recorded anything about, stays: the ledger is what prevents a second contact. */
+export function removeLead(db: Database, id: string): { removed: string } {
+  return db.transaction(() => {
+    const lead = getLead(db, id);
+    const touched = db
+      .query<{ n: number }, { id: string }>(
+        "SELECT (SELECT COUNT(*) FROM attempts WHERE lead_id = $id) + (SELECT COUNT(*) FROM events WHERE lead_id = $id) AS n",
+      )
+      .get({ id: lead.id });
+    if ((touched?.n ?? 0) > 0) {
+      throw new OstackError("lead_has_history", "This lead has messages or events, so it stays in the ledger. Use leads close instead.");
+    }
+    db.query("DELETE FROM leads WHERE id = $id").run({ id: lead.id });
+    return { removed: lead.id };
+  })();
+}
+
 export const CLOSING_STATUSES = ["meeting", "completed", "stopped"] as const;
 
 export function closeLead(db: Database, id: string, status: (typeof CLOSING_STATUSES)[number], reason: string, now = new Date()): Lead {

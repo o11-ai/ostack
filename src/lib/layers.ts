@@ -108,7 +108,7 @@ export type PackInfo = { name: string; description: string; kind: string; dir: s
 
 export async function describePack(dir: string, name: string, shipped: boolean): Promise<PackInfo> {
   const meta = join(dir, "pack.md");
-  const { data } = existsSync(meta) ? parseFrontmatter(await Bun.file(meta).text()) : { data: {} };
+  const { data }: { data: Record<string, unknown> } = existsSync(meta) ? parseFrontmatter(await Bun.file(meta).text()) : { data: {} };
   return {
     name,
     description: typeof data.description === "string" ? data.description : "",

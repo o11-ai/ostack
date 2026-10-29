@@ -115,7 +115,7 @@ Your notes are markdown files the agent writes. They sit in layers on top of the
 
 ```
 ~/gtm/
-├── ostack.json          managed by the CLI: mode, limits, packs, which setup questions were asked
+├── ostack.json          managed by the CLI: mode, limits, follow-up schedule, packs, setup progress
 ├── custom/              your team's notes
 │   ├── about.md         what you sell, the one ask, proof, what never to claim
 │   ├── voice.md         how you write, real samples, signature
@@ -150,7 +150,7 @@ sequenceDiagram
 ```
 
 - **New setup questions** are the only ones asked again.
-- **Changed defaults** are flagged only for steps you customized.
+- **Changed defaults** are flagged only for steps you customized, each with a one-line summary of what changed.
 - **Renamed steps** keep your notes working, and the agent tidies the file names.
 - **The ledger** upgrades itself, after making a backup.
 
@@ -165,7 +165,8 @@ These hold whatever your notes say, because the CLI enforces them rather than re
 | 👤 **One person, one sequence** | Duplicates are rejected, and the per-company limit holds across campaigns. |
 | ✋ **Opt-outs stick** | Bounces and opt-outs block that address permanently. |
 | 💬 **Replies pause** | A human reply stops the cold sequence for that person. |
-| 📏 **Hard limits** | Daily volume and the maximum number of touches per person are ceilings. Unfilled `{{placeholders}}` are rejected. |
+| 📏 **Hard limits** | Daily volume and the follow-up schedule are ceilings. Unfilled `{{placeholders}}` and `[template slots]` are rejected. |
+| 🧯 **No accidental writes** | Unknown flags are refused, imports can be previewed with `--dry-run`, and only never-contacted leads can be removed. |
 
 <details>
 <summary><b>⌨️ CLI reference</b></summary>
@@ -176,10 +177,12 @@ Every command prints JSON for the agent. `ostack help` lists them all. The ones 
 | --- | --- |
 | `ostack doctor` | Checks the install, the workspace and your customizations |
 | `ostack status` | Lead counts and today's budget |
-| `ostack context [step]` | Exactly what the agent will read, overall or for one step |
-| `ostack settings show` | Mode (draft or send) and limits |
+| `ostack context [step]` | Exactly what the agent will read, overall or for one step (`--files` for just the note names) |
+| `ostack settings show` | Mode (draft or send), limits and the follow-up schedule |
+| `ostack settings set follow_up_days 2,5` | Two follow-ups: 2 days after the first message, then 5 days later |
 | `ostack packs list` | Shared starting points to install |
 | `ostack leads list` | Your leads |
+| `ostack leads add --input-file leads.csv --dry-run` | Preview an import |
 | `ostack suppress --email <x> --reason <why>` | Never contact someone again |
 | `ostack upgrade` | Pulls the latest baseline |
 
@@ -208,8 +211,9 @@ bun run src/cli.ts help
 - **Skills** live in `skills/` and **step defaults** in `steps/`, all plain Markdown.
 - **Step ids and setup-question ids are the stable surface** that notes attach to:
   - Rename a step only by listing the old name in `renamed_from` in its frontmatter.
-  - Bump a step's `changed` version when its default changes meaningfully.
+  - Bump a step's `changed` version when its default changes meaningfully, and say what changed in `change`.
 - **New setup questions** go in [`questions.md`](skills/ostack-setup/references/questions.md) with a `Since` version.
+- **Test skill changes with a real agent** in [`evals/agent-sandbox`](evals/agent-sandbox): a sandboxed mailbox, CRM, calendar and web, so a small model can run setup, outbound and follow-ups end to end while you read where it got lost.
 - **New packs** in `packs/` are very welcome. Recruiting agencies, dev tools, local services: all of it.
 
 <p align="center"><sub>MIT · built by <a href="https://o11.ai">o11</a></sub></p>

@@ -9,9 +9,9 @@ This skill is a baseline made of named steps with defaults; the user customizes 
 
 ## Start every run
 
-1. `cd` to the workspace (the folder with `ostack.json`) and run `ostack doctor`. Stop on any `fail`. With no workspace there is nothing to follow up: hand over to the ostack-setup skill (or, in a scheduled run, stop and report it). Open setup items are for ostack-setup too: offer it when someone is present; otherwise mention it in the report.
+1. `cd` to the workspace (the folder with `ostack.json`; if you are not in one, the error lists known workspaces) and run `ostack doctor`. If your shell does not keep the folder between commands, start each command with `cd <workspace> &&`. Stop on any `fail`. With no workspace there is nothing to follow up: hand over to the ostack-setup skill (or, in a scheduled run, stop and report it). Open setup items are for ostack-setup too: offer it when someone is present; otherwise mention it in the report.
 2. Run `ostack context` and read every general note: who the user is, what they offer, their voice, learnings, and anything else they told you.
-3. Run the `inbox` step first, every run, so the queue reflects what just arrived.
+3. Run the `inbox` step first, every run. `ostack due` only knows what has been recorded, so it shows no replies until the inbox step records them.
 4. Run `ostack due --for follow-ups` and work the queue in order, calling it again after each batch, until `next` is `done`.
 
 | `next` | Steps to run |
@@ -26,7 +26,7 @@ After each event you `observe` (a reply, meeting, bounce or opt-out), also run t
 
 The first time you reach a step in a run, run `ostack context <step>` (once per step per run is enough; the notes do not change mid-run). It returns the step's `default`, then the user's `before`, `notes` and `after` for it, lowest priority first. Do the `before` notes, then the step as the default describes, refined by the notes (where they conflict, the later note wins), then the `after` notes. If a note replaces the default entirely, follow the note.
 
-Run `ostack help` for exact command flags.
+Run `ostack help` (or `ostack <command> --help`) for exact flags. The user counts as present unless the run's prompt says it is scheduled; when present, ask them about anything needing their judgment instead of guessing.
 
 ## Rules no customization can change
 

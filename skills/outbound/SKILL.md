@@ -9,9 +9,9 @@ This skill is a baseline. It is made of named steps, each with a default, and th
 
 ## Start every run
 
-1. `cd` to the workspace (the folder with `ostack.json`) and run `ostack doctor`. Stop on any `fail`. If there is no workspace, or no `custom/about.md`, there is nothing to run yet: hand over to the ostack-setup skill (or, in a scheduled run, stop and report it). If setup only has open items, offer ostack-setup when someone is present; in a scheduled run, carry on and mention it in the report.
+1. `cd` to the workspace (the folder with `ostack.json`; if you are not in one, the error lists known workspaces) and run `ostack doctor`. If your shell does not keep the folder between commands, start each command with `cd <workspace> &&`. Stop on any `fail`. If there is no workspace, or no `custom/about.md`, there is nothing to run yet: hand over to the ostack-setup skill (or, in a scheduled run, stop and report it). If setup only has open items, offer ostack-setup when someone is present; in a scheduled run, carry on and mention it in the report.
 2. Run `ostack context` and read every general note: who the user is, what they offer, their voice, learnings, and anything else they told you. Note the mode and limits.
-3. Run `ostack due --for outbound` and work the queue it returns in order. Call it again after each batch, until `next` is `done` or every source is exhausted. (`--for outbound` leaves replies and follow-ups to the follow-ups skill, while still holding back their share of the daily budget.)
+3. Run `ostack due --for outbound` and work the queue it returns in order. Call it again after each batch, until `next` is `done`, or `next` stays `find` after a find step that added nobody new (sources are exhausted: stop and say so). (`--for outbound` leaves replies and follow-ups to the follow-ups skill, while still holding back their share of the daily budget.)
 
 | `next` | Steps to run |
 | --- | --- |
@@ -24,7 +24,7 @@ This skill is a baseline. It is made of named steps, each with a default, and th
 
 The first time you reach a step in a run, run `ostack context <step>` (once per step per run is enough; the notes do not change mid-run). It returns the step's `default`, then the user's `before`, `notes` and `after` for it, lowest priority first. Do the `before` notes, then the step as the default describes, refined by the notes (where they conflict, the later note wins), then the `after` notes. If a note replaces the default entirely, follow the note.
 
-Run `ostack help` for exact command flags.
+Run `ostack help` (or `ostack <command> --help`) for exact flags. The user counts as present unless the run's prompt says it is scheduled; when present, ask them about anything needing their judgment instead of guessing.
 
 ## Rules no customization can change
 

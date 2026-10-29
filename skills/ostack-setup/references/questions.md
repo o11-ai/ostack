@@ -14,14 +14,14 @@ Since: 0.2.0
 Ask: Who exactly should we reach? Role, company type and size, location, and anything that rules someone out (existing customers, competitors, agencies, ...).
 Default: Inferred from `about.md`, which is rarely sharp enough. Push for specifics.
 Writes: `custom/qualify.md` as provable rules and exclusions.
-Check: Qualify one real lead from the web against the rules and show the verdict and evidence.
+Check: Qualify two or three real leads from the user's list or the web against the rules in chat (do not add them to the ledger) and show each verdict with its evidence. Ask about any borderline case you hit, such as a role or size close to the line, and add the answer to the note.
 
 ## sources
 Since: 0.2.0
 Ask: Where do good leads come from? A list or CSV, a CRM view, a data tool (Apollo, Clay, ...), or should I research the web? Any places to look or avoid?
 Default: Web research, as described in the find step.
 Writes: `custom/find.md`. If they name a tool, include how to reach it.
-Check: Find three real candidates and show them without adding them.
+Check: Find up to three real candidates and show them without adding them. For a file, `ostack leads add --input-file <file> --dry-run` shows what an import would add, skip as duplicates or reject. If something was added by mistake, `ostack leads remove --id <id>` undoes it.
 
 ## voice
 Since: 0.2.0
@@ -34,14 +34,14 @@ Check: Draft one message for a real lead and ask what to change. Repeat until th
 Since: 0.2.0
 Ask: Which account should messages go out from, and through what? (a Gmail or Outlook connector, the browser, an email API like Resend, LinkedIn in the browser) Draft-only for now, or should I send?
 Default: Draft mode, through whichever connected mail tool fits.
-Writes: `custom/send.md` with the account and tool for each channel, and `custom/inbox.md` with how to read replies the same way. Offer the matching pack (`gmail`, `outlook-web`) when one fits. Set the mode with `ostack settings set mode draft|send`.
+Writes: `custom/send.md` with the account and tool for each channel, and `custom/inbox.md` with how to read replies the same way. Offer the matching pack (`gmail`, `outlook-web`) when one fits. Set the mode with `ostack settings set mode draft|send`. The mode setting alone decides draft or send: leave every mention of drafting or sending first (even "start in draft mode") out of the notes, so a later switch cannot leave a stale note behind.
 Check: Confirm the signed-in account, and create a test draft to the user themselves (never to a lead).
 
 ## follow-ups
 Since: 0.2.0
 Ask: If someone does not reply, how many follow-ups, how far apart, and on which channel?
 Default: Three follow-ups after the first message, at 3, 4 and 7 days, in the same thread.
-Writes: `custom/follow-up.md` when it differs. Set `ostack settings set max_touches <first + follow-ups>`.
+Writes: `ostack settings set follow_up_days <days before each follow-up>`, such as `2,5` for two follow-ups, or `none`. This also sets how many touches a lead can get. Put anything else (channel, content, "skip weekends") in `custom/follow-up.md`.
 Check: Restate the schedule as dates for a message sent today.
 
 ## crm

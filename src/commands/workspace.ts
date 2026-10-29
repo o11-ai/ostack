@@ -15,6 +15,7 @@ import {
   loadWorkspace,
   LOCAL_DIR,
   PACKS_DIR,
+  rememberWorkspace,
 } from "../lib/workspace.ts";
 import { campaignOf } from "./context.ts";
 
@@ -35,6 +36,7 @@ export async function initCommand(args: Args): Promise<void> {
     }
   }
   await writeState(root, { ...state, packs });
+  rememberWorkspace(root);
   const gitignore = join(root, ".gitignore");
   const ignored = existsSync(gitignore) ? await readFile(gitignore, "utf8") : "";
   const missing = IGNORED.filter((line) => !ignored.split("\n").includes(line));
@@ -43,7 +45,7 @@ export async function initCommand(args: Args): Promise<void> {
     workspace: root,
     packs,
     files: [join(root, STATE_FILE), join(root, CUSTOM_DIR), join(root, LOCAL_DIR)],
-    next: 'Ask your agent to "set up ostack" so it can interview you and write your customizations.',
+    next: 'Agents: continue with "ostack setup status". People: ask your agent to "set up ostack" so it can interview you.',
   });
 }
 

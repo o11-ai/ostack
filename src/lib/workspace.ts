@@ -1,5 +1,6 @@
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { OstackError } from "./errors.ts";
 import { readState, STATE_FILE, type State } from "./settings.ts";
@@ -26,9 +27,28 @@ export async function loadWorkspace(): Promise<Workspace> {
   const start = process.env.OSTACK_WORKSPACE ?? process.cwd();
   const root = findWorkspaceRoot(start);
   if (!root) {
-    throw new OstackError("no_workspace", `No ${STATE_FILE} found in ${start} or its parents. Run "ostack init" or pass --workspace.`);
+    const known = knownWorkspaces();
+    const hint = known.length > 0 ? ` Known workspaces: ${known.join(", ")}. cd into one, or pass --workspace.` : ' Run "ostack init" or pass --workspace.';
+    throw new OstackError("no_workspace", `No ${STATE_FILE} found in ${start} or its parents.${hint}`, { known });
   }
-  return { root, ledgerPath: join(root, ".ostack", "ledger.db"), state: await readState(root) };
+  const state = await readState(root);
+  rememberWorkspace(root);
+  return { root, ledgerPath: join(root, ".ostack", "ledger.db"), state };
+}
+
+/** Workspaces created on this machine, so an agent opened elsewhere can find them. */
+const REGISTRY = () => join(homedir(), ".ostack", "workspaces");
+
+export function knownWorkspaces(): string[] {
+  if (!existsSync(REGISTRY())) return [];
+  const lines = readFileSync(REGISTRY(), "utf8").split("\n").map((line) => line.trim()).filter(Boolean);
+  return [...new Set(lines)].filter((root) => existsSync(join(root, STATE_FILE)));
+}
+
+export function rememberWorkspace(root: string): void {
+  if (knownWorkspaces().includes(root)) return;
+  mkdirSync(dirname(REGISTRY()), { recursive: true });
+  appendFileSync(REGISTRY(), `${root}\n`);
 }
 
 export function checkName(value: string, what: string): string {
