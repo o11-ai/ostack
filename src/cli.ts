@@ -25,10 +25,10 @@ Workspace and customization
   context [<step>|<note>] [--campaign <name>] [--files]   what to know before a run (--files: note names only),
                                                or one step's default plus every customization of it
   steps                                        the named steps customizations attach to
-  settings show | settings set <key> <value>   mode (draft|send), new_per_day, touches_per_day, per_company,
-                                               follow_up_days (days before each follow-up, e.g. 3,4,7, or none)
+  settings show | settings set <key> <value>     mode (draft|send), new_per_day, touches_per_day, per_company,
+                                               follow_up_days (days after the previous touch for each follow-up, e.g. 3,4,7, or none)
   setup status | answer <question> [--skip] | reviewed | reset [--question <id>]
-  packs list | add <name> [--from <folder>] | remove <name> | show <name>
+  packs list | add <name> [--from <folder>] | remove <name> | show <name>   (or --name <name>)
   campaigns                                    campaigns that have their own notes
   doctor                                       check install, workspace and customizations
   prompt outbound|follow-ups [--campaign]      the instruction for a scheduled run
@@ -40,7 +40,7 @@ Each run
   check --email|--linkedin|--domain <value>     history and suppression before researching
 
 Leads
-  leads add --input-file <file.json|file.csv|-> [--source <where they came from>] [--campaign <name>]
+  leads add --input-file <file.json|file.csv|-> [--source <where they came from>] [--campaign <name>] [--dry-run]
           JSON: [{"name","email","linkedin_url","company","domain","title","source", ...}]; CSV: a header row.
           email or linkedin_url is required; any other key is kept in the lead's fields
   leads list [--campaign] [--status] [--search] [--limit]
@@ -48,12 +48,14 @@ Leads
   leads update --id <lead> [--email] [--linkedin-url] [--name] [--title] [--company] [--domain] [--research|--research-file] [--fields '<json>']
   leads qualify --id <lead> --status qualified|disqualified --reason <text> --evidence <urls and facts>
   leads close --id <lead> --status meeting|completed|stopped --reason <text>
+  leads remove --id <lead>                      undo a mistaken import (only leads never messaged)
 
 Messages (every one: reserve, send, receipt)
   reserve --lead <id> --kind touch|reply --channel <email|linkedin|...> [--subject] --body|--body-file
   receipt --attempt <id> --outcome sent|drafted|not_sent|uncertain [--external-id] [--thread-id] [--evidence]
           [--next-in-days <n> | --last]        override the follow-up schedule for this lead (e.g. "ping me in two weeks")
-  observe --lead <id> --type reply|bounce|opt_out|out_of_office|meeting|note|<your own> [--body] [--external-id] [--until]
+  observe --lead <id> --type reply|bounce|opt_out|out_of_office|meeting|note|<your own>
+          [--body|--body-file] [--external-id] [--until] [--occurred-at]
   defer --lead <id> --until <date> --reason <text>
   suppress --email|--domain|--linkedin <value> --reason <text>
 
@@ -91,7 +93,22 @@ async function main(): Promise<void> {
   if (args.flags.help === true || args.positionals.slice(1).includes("help")) return printText(helpFor(command));
   const handler = COMMANDS[command];
   if (!handler) throw new OstackError("unknown_command", `Unknown command "${command}". Run "ostack help".`);
+  checkFlags(command, args);
   await handler(args);
+}
+
+const GLOBAL_FLAGS = ["workspace", "help", "version"];
+
+/** Rejects flags a command does not take, so a typo or an imagined flag (--dry-run) never runs the real thing. */
+function checkFlags(command: string, args: Args): void {
+  const help = helpFor(command);
+  const known = new Set([...GLOBAL_FLAGS, ...[...help.matchAll(/--([a-z][a-z-]*)/g)].map((match) => match[1]!)]);
+  const unknown = Object.keys(args.flags).filter((flag) => !known.has(flag));
+  if (unknown.length > 0) {
+    throw new OstackError("unknown_flag", `ostack ${command} does not take ${unknown.map((flag) => `--${flag}`).join(", ")}. Nothing was changed.`, {
+      usage: help.split("\n").map((line) => line.trim()),
+    });
+  }
 }
 
 /** The help lines for one command, with their continuation lines. */

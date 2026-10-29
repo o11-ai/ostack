@@ -8,7 +8,7 @@ import { openLedger } from "../src/lib/db.ts";
 import { due } from "../src/lib/due.ts";
 import { OstackError } from "../src/lib/errors.ts";
 import { observe } from "../src/lib/events.ts";
-import { addLeads, getLead, parseFields, qualifyLead, suppress, updateLead } from "../src/lib/leads.ts";
+import { addLeads, getLead, parseFields, qualifyLead, removeLead, suppress, updateLead } from "../src/lib/leads.ts";
 import { applySetting, DEFAULT_LIMITS, defaultState, nextGap, type Limits } from "../src/lib/settings.ts";
 
 function setup(limits: Partial<Limits> = {}) {
@@ -191,5 +191,16 @@ describe("follow-up schedule", () => {
     qualifyLead(db, id!, "qualified", "fits", "acme.io");
     const body = "hey sam, saw [specific recent thing]. worth 15 min?";
     expect(code(() => reserve(db, limits, { leadId: id!, kind: "touch", channel: "email", subject: "acme", body }))).toBe("message_rejected");
+  });
+});
+
+describe("lead removal", () => {
+  test("only a lead with no history can be removed", () => {
+    const { db, limits } = setup();
+    const [fresh, contacted] = addLeads(db, "main", [{ email: "a@acme.io" }, { email: "b@beta.io" }]).added;
+    expect(removeLead(db, fresh!)).toEqual({ removed: fresh! });
+    qualifyLead(db, contacted!, "qualified", "fits", "beta.io");
+    reserve(db, limits, { leadId: contacted!, kind: "touch", channel: "email", subject: "beta", body: BODY });
+    expect(code(() => removeLead(db, contacted!))).toBe("lead_has_history");
   });
 });

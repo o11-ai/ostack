@@ -21,7 +21,7 @@ Since: 0.2.0
 Ask: Where do good leads come from? A list or CSV, a CRM view, a data tool (Apollo, Clay, ...), or should I research the web? Any places to look or avoid?
 Default: Web research, as described in the find step.
 Writes: `custom/find.md`. If they name a tool, include how to reach it.
-Check: Find three real candidates and show them without adding them.
+Check: Find up to three real candidates and show them without adding them. For a file, `ostack leads add --input-file <file> --dry-run` shows what an import would add, skip as duplicates or reject. If something was added by mistake, `ostack leads remove --id <id>` undoes it.
 
 ## voice
 Since: 0.2.0

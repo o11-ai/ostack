@@ -13,6 +13,7 @@ import {
   listLeads,
   present,
   qualifyLead,
+  removeLead,
   updateLead,
   type LeadInput,
   type LeadUpdate,
@@ -48,6 +49,14 @@ export async function leadsCommand(args: Args): Promise<void> {
       const campaign = campaignOf(args);
       const file = required(args, "input-file");
       const inputs = parseLeadFile(await readFileOrStdin(file), file).map((lead) => ({ ...lead, source: lead.source ?? optional(args, "source") ?? (file === "-" ? undefined : `file:${basename(file)}`) }));
+      if (args.flags["dry-run"] === true) {
+        // Runs the real import, then rolls it back: the result shows exactly what would be added.
+        db.run("BEGIN");
+        const preview = addLeads(db, campaign, inputs);
+        db.run("ROLLBACK");
+        print({ campaign, dry_run: true, ...preview });
+        return;
+      }
       print({ campaign, ...addLeads(db, campaign, inputs) });
       return;
     }
@@ -88,8 +97,12 @@ export async function leadsCommand(args: Args): Promise<void> {
       print(present(closeLead(db, required(args, "id"), status, required(args, "reason"))));
       return;
     }
+    case "remove": {
+      print(removeLead(db, required(args, "id")));
+      return;
+    }
     default:
-      throw new OstackError("unknown_command", "Use: ostack leads add|list|show|update|qualify|close.");
+      throw new OstackError("unknown_command", "Use: ostack leads add|list|show|update|qualify|close|remove.");
   }
 }
 
