@@ -7,7 +7,7 @@ import { generalNotes, moduleNotes, stepAliases, stepContext } from "../lib/laye
 import { print } from "../lib/output.ts";
 import { writeState } from "../lib/state.ts";
 import { findStep, loadQuestions, loadSteps, type SetupQuestion } from "../lib/steps.ts";
-import { checkTimeZone } from "../lib/time.ts";
+import { checkTimeZone, localTime } from "../lib/time.ts";
 import { compareVersions, readVersion } from "../lib/version.ts";
 import { checkName, CUSTOM_DIR, DEFAULT_CAMPAIGN, enabledModules, loadWorkspace, requireModule, type Workspace } from "../lib/workspace.ts";
 import { MODULE_CODE } from "../modules/index.ts";
@@ -81,6 +81,7 @@ export async function settingsCommand(args: Args): Promise<void> {
   const sub = args.positionals[1] ?? "show";
   const show = () => ({
     timezone: workspace.state.timezone,
+    local_time: localTime(new Date(), workspace.state.timezone).text,
     modules: Object.fromEntries(
       enabledModules(workspace).map((module) => [module, MODULE_CODE[module]?.settings?.show(workspace.state.modules[module]!.settings) ?? {}]),
     ),

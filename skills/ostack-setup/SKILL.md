@@ -39,7 +39,8 @@ Workflows can run on their own, in the workspace timezone (`ostack settings show
    - **Claude Desktop** (local scheduled tasks) or **Codex** (automations): run `ostack schedule spec <workflow> --host claude|codex`. If you are running inside that app and can create scheduled tasks or automations, create it exactly as `ask` says: same name, folder, schedule and instructions. Otherwise give the user the fields to enter (`where` says where). Then have them run it once (Run now) and approve the tools it uses with "always allow", so later runs never stall on a prompt.
    - **Neither** (a server, or another agent): `ostack schedule cron install --agent claude|codex` writes a crontab block that starts the agent headless. Show the lines first.
 3. Record what you created: `ostack schedule installed <workflow> --host <host> --name <task name>`. `ostack doctor` warns about schedules that are on but not installed anywhere.
-4. If `spec` returns a `timezone_note`, the computer's clock zone differs from the workspace's: fix one before relying on the times.
+4. If `spec` returns a `timezone_note`, the computer's clock differs from the workspace's timezone. Use the converted times `spec` gives as they are and tell the user in one line; each run checks the workspace time itself. If the user actually lives in the computer's timezone, set the workspace to it instead (`ostack settings set timezone`).
+5. A Run now outside the schedule's hours stops at `not_due` on purpose. That still proves the task starts; run it once during its hours to approve the mail and CRM tools.
 
 The task's instructions only call `ostack prompt <workflow>`, so they stay right after upgrades and setting changes. When a schedule's times change, update the task in each host listed under `installed` (the `set` output says which). Changing anything else needs no task edit.
 

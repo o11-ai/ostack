@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { setupStatus } from "../src/commands/customize.ts";
 import { classify, generalNotes, stepContext } from "../src/lib/layers.ts";
 import { loadModules } from "../src/lib/modules.ts";
-import { describeSchedule, parseSchedule, toCron, toRRule } from "../src/lib/schedule.ts";
+import { describeSchedule, isDue, parseSchedule, shiftSchedule, toCron, toRRule, zoneOffset } from "../src/lib/schedule.ts";
 import { defaultState, readState, writeState, type State } from "../src/lib/state.ts";
 import { loadQuestions, loadSteps, type Step } from "../src/lib/steps.ts";
 import { isOpen, nextOpen, parseWindow } from "../src/lib/time.ts";
@@ -129,6 +129,19 @@ describe("schedules and windows", () => {
     expect(toCron(often)).toBe("7,37 8,9,10,11,12,13,14,15,16,17 * * 1,2,3,4,5");
     expect(describeSchedule(often, "Europe/London")).toBe("weekdays, every 30 minutes from 08:00 to 18:00 (Europe/London)");
     expect(() => parseSchedule({ every_minutes: 7 })).toThrow();
+  });
+
+  test("schedules convert to another computer's clock, and runs far from their slot are not due", () => {
+    const morning = parseSchedule({ days: "weekdays", at: "08:40" });
+    // In November New York is UTC-5: 08:40 there is 13:40 on a UTC computer.
+    const offset = zoneOffset("America/New_York", "UTC", new Date("2026-11-10T12:00:00Z"));
+    expect(offset).toBe(300);
+    expect(toCron(shiftSchedule(morning, offset))).toBe("40 13 * * 1,2,3,4,5");
+    // Shifting back past midnight moves the days too: weekday 08:40 minus ten hours is the evening before.
+    expect(shiftSchedule(morning, -600).days).toEqual([0, 1, 2, 3, 4]);
+    expect(isDue(morning, "America/New_York", new Date("2026-11-10T13:45:00Z"))).toBe(true);
+    // A catch-up at 11pm New York time does nothing.
+    expect(isDue(morning, "America/New_York", new Date("2026-11-11T04:00:00Z"))).toBe(false);
   });
 
   test("send windows follow the workspace timezone", () => {

@@ -7,7 +7,7 @@ Since: 0.4.0
 Ask: Which timezone do you work in? Schedules and sending hours use it.
 Default: The computer's timezone, which `ostack init` already set (`ostack settings show`). Confirm it rather than asking cold.
 Writes: `ostack settings set timezone <IANA name>`, such as America/New_York.
-Check: Say the current local time in that timezone and ask whether it is right.
+Check: Say the `local_time` from `ostack settings show` and ask whether that is the time where they are.
 
 ## schedule
 Since: 0.2.0

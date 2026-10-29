@@ -4,7 +4,7 @@ import { oneOf, optional, required, type Args } from "../lib/args.ts";
 import { OstackError } from "../lib/errors.ts";
 import { findWorkflow, loadModules, type Workflow } from "../lib/modules.ts";
 import { print } from "../lib/output.ts";
-import { describeSchedule, parseSchedule, runsPerDay, toCron, toRRule, type ScheduleSpec } from "../lib/schedule.ts";
+import { describeSchedule, isDue, parseSchedule, runsPerDay, shiftSchedule, toCron, toRRule, zoneOffset, type ScheduleSpec } from "../lib/schedule.ts";
 import { writeState } from "../lib/state.ts";
 import { systemTimeZone } from "../lib/time.ts";
 import { enabledModules, loadWorkspace, type Workspace } from "../lib/workspace.ts";
@@ -56,16 +56,22 @@ function hostSpec(workspace: Workspace, workflow: Workflow, host: Host) {
   const timezone = workspace.state.timezone;
   const base = { workflow: workflow.ref, name: taskName(workflow), folder: workspace.root, instructions: instruction(workspace, workflow), schedule: describeSchedule(spec, timezone) };
   const machine = systemTimeZone();
+  // Claude Desktop and Codex read schedules in the computer's clock. When it differs from the workspace's, convert,
+  // and rely on the run guard for the hour daylight saving can shift it by.
+  const offset = machine === timezone ? 0 : zoneOffset(timezone, machine, new Date());
+  const local = shiftSchedule(spec, offset);
   const timezoneNote =
-    machine === timezone ? null : `This computer is set to ${machine}, but the workspace uses ${timezone}. Schedulers run in the computer's local time; change one so they match.`;
+    machine === timezone
+      ? null
+      : `This computer's clock is ${machine}, the workspace's is ${timezone}. The times below are converted to this computer's clock (${describeSchedule(local, machine)}). Each run checks the workspace time itself, so a daylight-saving shift never makes it act at the wrong hour.`;
   if (host === "claude") {
     return {
       ...base,
       host,
       where: "Claude Desktop, Code tab, Scheduled (a local task, so it can reach the workspace and your connectors)",
-      cron: toCron(spec),
+      cron: toCron(local),
       permission_mode: "Auto, or Accept edits with ostack and your mail/CRM tools always allowed after the first Run now",
-      ask: `Create a local scheduled task named "${base.name}" in the folder ${base.folder}, running on the cron schedule "${toCron(spec)}" in local time, with these instructions: ${base.instructions}`,
+      ask: `Create a local scheduled task named "${base.name}" in the folder ${base.folder}, running on the cron schedule "${toCron(local)}" in local time, with these instructions: ${base.instructions}`,
       after: `Click Run now once, approve each tool with "always allow", then run: ostack schedule installed ${workflow.ref} --host claude --name ${base.name}`,
       timezone_note: timezoneNote,
     };
@@ -75,9 +81,9 @@ function hostSpec(workspace: Workspace, workflow: Workflow, host: Host) {
       ...base,
       host,
       where: "Codex app, Automations (a standalone, local project automation on this folder, not a worktree)",
-      rrule: toRRule(spec),
+      rrule: toRRule(local),
       sandbox: "workspace-write with network access, so the run can reach your mail and CRM tools",
-      ask: `Create a standalone automation named "${base.name}" for the project ${base.folder}, running locally (not in a worktree) on the schedule ${toRRule(spec)}, with these instructions: ${base.instructions}`,
+      ask: `Create a standalone automation named "${base.name}" for the project ${base.folder}, running locally (not in a worktree) on the schedule ${toRRule(local)}, with these instructions: ${base.instructions}`,
       after: `Run it once from the Automations page and check its result, then run: ostack schedule installed ${workflow.ref} --host codex --name ${base.name}`,
       timezone_note: timezoneNote,
     };
@@ -207,6 +213,12 @@ export async function runCommand(args: Args): Promise<void> {
   const lock = join(dir, `${workflow.module}-${workflow.id}.lock`);
   mkdirSync(dir, { recursive: true });
   if (sub === "start") {
+    if (args.flags.scheduled === true) {
+      const { spec } = effective(workspace, workflow);
+      if (spec && !isDue(spec, workspace.state.timezone, new Date())) {
+        throw new OstackError("not_due", `${workflow.ref} runs ${describeSchedule(spec, workspace.state.timezone)}, and this run fired outside that. Do nothing and stop.`);
+      }
+    }
     if (existsSync(lock)) {
       const started = readFileSync(join(lock, "started"), "utf8").trim();
       const age = (Date.now() - Date.parse(started)) / 36e5;
@@ -231,5 +243,5 @@ export async function runCommand(args: Args): Promise<void> {
     print({ workflow: workflow.ref, started_at: started, ended_at: new Date().toISOString() });
     return;
   }
-  throw new OstackError("unknown_command", "Use: ostack run start|end <workflow>.");
+  throw new OstackError("unknown_command", "Use: ostack run start <workflow> [--scheduled] | ostack run end <workflow>.");
 }

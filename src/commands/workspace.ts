@@ -43,7 +43,7 @@ export async function initCommand(args: Args): Promise<void> {
     modules,
     timezone: state.timezone,
     files: [join(root, STATE_FILE), join(root, CUSTOM_DIR), join(root, LOCAL_DIR)],
-    next: 'Agents: continue with "ostack setup status". People: ask your agent to "set up ostack" so it can interview you.',
+    next: `Agents: work in ${root} (cd there), then run "ostack setup status". People: ask your agent to "set up ostack" so it can interview you.`,
   });
 }
 
@@ -172,7 +172,7 @@ export async function promptCommand(args: Args): Promise<void> {
       `Use the ${workflow.skill} skill for the "${campaign}" campaign in ${workspace.root}${mode}.`,
       campaign === "main" ? "Work in that folder." : `Work in that folder and pass --campaign ${campaign} to every ostack command that takes it.`,
       `This is a scheduled run of ${workflow.ref}. Nobody is present: do not ask questions. Defer problem items with a reason and continue.`,
-      `Start with \`ostack run start ${workflow.ref}\`; if it says another run is in progress, stop and report only that. End with \`ostack run end ${workflow.ref}\`.`,
+      `Start with \`ostack run start ${workflow.ref} --scheduled\`. If it reports run_in_progress or not_due, stop and report only that line. Otherwise end with \`ostack run end ${workflow.ref}\`.`,
       "Finish with the report the skill asks for, plus anything unresolved.",
     ].join("\n"),
   );

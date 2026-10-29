@@ -1,5 +1,5 @@
 import { OstackError } from "./errors.ts";
-import { formatClock, formatDays, parseClock, parseDays } from "./time.ts";
+import { formatClock, formatDays, localTime, parseClock, parseDays } from "./time.ts";
 
 /**
  * When a workflow runs, in the workspace's local time. Either once a day at `at`, or every `every_minutes`
@@ -75,4 +75,45 @@ export function describeSchedule(spec: ScheduleSpec, timeZone: string): string {
 /** Runs per day, so a summary can say what a schedule costs. */
 export function runsPerDay(spec: ScheduleSpec): number {
   return "at" in spec ? 1 : hours(spec).length * minutes(spec).length;
+}
+
+/** Minutes to add to a local time in `from` to get the same moment in `to`, at `date`. */
+export function zoneOffset(from: string, to: string, date: Date): number {
+  const a = localTime(date, from);
+  const b = localTime(date, to);
+  let diff = b.day * 1440 + b.minutes - (a.day * 1440 + a.minutes);
+  if (diff > 7 * 720) diff -= 7 * 1440;
+  if (diff < -7 * 720) diff += 7 * 1440;
+  return diff;
+}
+
+/**
+ * The same schedule expressed in another zone's clock, for schedulers that only know the computer's local time.
+ * Correct for today's offsets; a daylight-saving change can move it by an hour, which the run guard (`isDue`) absorbs.
+ */
+export function shiftSchedule(spec: ScheduleSpec, minutes: number): ScheduleSpec {
+  if (minutes === 0) return spec;
+  if ("at" in spec) {
+    const total = spec.at + minutes;
+    const dayShift = Math.floor(total / 1440);
+    return { days: spec.days.map((day) => (((day + dayShift) % 7) + 7) % 7).sort(), at: ((total % 1440) + 1440) % 1440 };
+  }
+  const step = Math.min(spec.every_minutes, 60);
+  const offset = (((spec.offset + minutes) % step) + step) % step;
+  const from = spec.from + minutes;
+  const to = spec.to + minutes;
+  // Hours that cross midnight in the other zone: fire all day there and let the guard keep only the real hours.
+  if (from < 0 || to > 1440) return { ...spec, from: 0, to: 1440, offset, days: [0, 1, 2, 3, 4, 5, 6] };
+  return { ...spec, from, to, offset };
+}
+
+/**
+ * Whether a scheduled run that fires now belongs to this schedule, in the workspace timezone. Schedulers fire late
+ * (catch-up after sleep) or an hour off (daylight saving); a run far from its slot should do nothing.
+ */
+export function isDue(spec: ScheduleSpec, timeZone: string, date: Date): boolean {
+  const local = localTime(date, timeZone);
+  if (!spec.days.includes(local.day)) return false;
+  if ("at" in spec) return local.minutes >= spec.at - 90 && local.minutes <= spec.at + 180;
+  return local.minutes >= spec.from - 30 && local.minutes < spec.to + spec.every_minutes;
 }

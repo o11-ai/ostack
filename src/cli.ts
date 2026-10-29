@@ -33,7 +33,8 @@ Schedules (in the workspace timezone)
   schedule installed|uninstalled <workflow> --host claude|codex|cron [--name <task name>]
   schedule cron show|install|remove [--agent claude|codex]   for agents without a scheduler
   prompt <workflow> [--campaign <name>]        the instruction a scheduled run follows
-  run start|end <workflow>                     one run of a workflow at a time
+  run start <workflow> [--scheduled] | run end <workflow>   one run at a time; --scheduled also stops a run that fired
+                                               outside its schedule (a catch-up after sleep, a daylight-saving shift)
 
 Module commands: ostack <module> <command>. "ostack gtm help" lists gtm's.
 
