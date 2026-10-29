@@ -59,9 +59,10 @@ When the user wants another module ("also help me with recruiting"), `ostack mod
 
 Run `ostack setup status` and walk the user through it:
 
+- **What's new:** summarize `release_notes` in a few plain lines first.
 - **New questions:** ask only those. The user's existing answers stand.
 - **Changed defaults:** each has a `change` saying what the release changed. Read the user's note for that step (`ostack context <step>`). If the change makes part of the note redundant or wrong (such as day counts that now belong in a setting), propose the exact edit and make it once they agree. If the note is unaffected, say so in one line instead of asking.
-- **Misplaced notes:** step notes from before modules sit directly in `custom/`. They keep working; move each to its `move_to` path.
+- **Misplaced notes:** step notes from before modules sit directly in `custom/`. They keep working. Show the list from `ostack setup tidy --dry-run`, and once the user agrees, run `ostack setup tidy`.
 - **Renamed steps:** rename the note files to the new step names (`renamed_steps`). They keep working meanwhile.
 - **Unknown steps:** ask what each note was meant for, then move or delete it.
 

@@ -1,5 +1,7 @@
-import { join } from "node:path";
+import { existsSync, mkdirSync, renameSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { optional, required, type Args } from "../lib/args.ts";
+import { REPO_ROOT } from "../lib/paths.ts";
 import { OstackError } from "../lib/errors.ts";
 import { generalNotes, moduleNotes, stepAliases, stepContext } from "../lib/layers.ts";
 import { print } from "../lib/output.ts";
@@ -143,6 +145,7 @@ export async function setupStatus(workspace: Workspace) {
   return {
     version,
     reviewed,
+    release_notes: await releaseNotes(reviewed),
     modules,
     timezone: workspace.state.timezone,
     pending_questions: questions
@@ -156,6 +159,20 @@ export async function setupStatus(workspace: Workspace) {
     // Step notes from before modules, still in custom/. They keep working; moving them into the module's folder keeps things tidy.
     misplaced_notes: misplaced,
   };
+}
+
+/** The changelog sections newer than the version this workspace last reviewed. */
+async function releaseNotes(reviewed: string): Promise<{ version: string; notes: string }[]> {
+  const path = join(REPO_ROOT, "CHANGELOG.md");
+  if (!existsSync(path)) return [];
+  return (await Bun.file(path).text())
+    .split(/^## /m)
+    .slice(1)
+    .map((section) => {
+      const [heading = "", ...rest] = section.split("\n");
+      return { version: heading.trim(), notes: rest.join("\n").trim() };
+    })
+    .filter((entry) => compareVersions(entry.version, reviewed) > 0);
 }
 
 async function findQuestion(workspace: Workspace, id: string): Promise<SetupQuestion> {
@@ -179,6 +196,24 @@ export async function setupCommand(args: Args): Promise<void> {
     print({ answered: question.id, skipped: args.flags.skip === true });
     return;
   }
+  if (sub === "tidy") {
+    // Moves step notes from before modules into their module's folder. Never overwrites a note already there.
+    const moved: { from: string; to: string }[] = [];
+    const kept: { path: string; reason: string }[] = [];
+    for (const { path, move_to } of (await setupStatus(workspace)).misplaced_notes) {
+      if (existsSync(move_to)) {
+        kept.push({ path, reason: `${move_to} already exists; merge them by hand` });
+        continue;
+      }
+      if (args.flags["dry-run"] !== true) {
+        mkdirSync(dirname(move_to), { recursive: true });
+        renameSync(path, move_to);
+      }
+      moved.push({ from: path, to: move_to });
+    }
+    print({ dry_run: args.flags["dry-run"] === true, moved, kept });
+    return;
+  }
   if (sub === "reviewed") {
     workspace.state.reviewed = version;
     await writeState(workspace.root, workspace.state);
@@ -193,5 +228,5 @@ export async function setupCommand(args: Args): Promise<void> {
     print({ reset: id ?? "all" });
     return;
   }
-  throw new OstackError("unknown_command", "Use: ostack setup status|answer <question> [--skip]|reviewed|reset [--question <id>].");
+  throw new OstackError("unknown_command", "Use: ostack setup status|answer <question> [--skip]|tidy [--dry-run]|reviewed|reset [--question <id>].");
 }

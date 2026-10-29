@@ -19,7 +19,8 @@ Workspace and customization
                                                or one step's default plus every customization of it
   steps [--module <id>]                        the named steps customizations attach to, such as gtm/write
   settings show | settings set <key> <value>   timezone, or a module's own, such as gtm.mode (see "ostack gtm help")
-  setup status | answer <question> [--skip] | reviewed | reset [--question <id>]
+  setup status | answer <question> [--skip] | tidy [--dry-run] | reviewed | reset [--question <id>]
+                                               tidy moves step notes from before modules into custom/<module>/
   packs list | add <name> [--from <folder>] | remove <name> | show <name>   (or --name <name>); names like gtm/gmail
   doctor                                       check install, workspace and customizations
   upgrade                                      pull the latest ostack (your workspace is never touched)

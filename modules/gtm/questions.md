@@ -71,3 +71,10 @@ Ask: After each run, is a summary in chat enough, or should I also post it somew
 Default: A summary in chat.
 Writes: `custom/gtm/after-report.md` if they want it posted somewhere.
 Check: Post a test summary there.
+
+## send-window
+Since: 0.4.0
+Ask: When may cold messages go out? Days and hours in your timezone. Replies to people who wrote back go out any time.
+Default: Weekdays 08:00-18:00. New workspaces start with this; workspaces from before 0.4 start with any time, so ask.
+Writes: `ostack settings set gtm.send_window "<days> HH:MM-HH:MM"`, such as `"weekdays 08:00-18:00"`, or `any`.
+Check: Say whether the window is open right now in their timezone (`ostack gtm due` shows `send_window`).
