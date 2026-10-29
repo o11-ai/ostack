@@ -1,7 +1,7 @@
 {
   "name": "ostack",
   "version": "0.3.0",
-  "description": "Open-source GTM skills for coding agents, starting with configurable cold outbound.",
+  "description": "Outbound your coding agent sets up by talking to you: plain-language customization, packs, and a local ledger that never double-sends.",
   "license": "MIT",
   "type": "module",
   "private": true,
