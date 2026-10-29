@@ -107,8 +107,8 @@ export function reserve(db: Database, limits: Limits, input: ReserveInput, now =
       if (open) {
         const how =
           open.status === "drafted"
-            ? `It is a draft: if the user sent it, run ostack receipt --attempt ${open.id} --outcome sent with its IDs; if it was deleted or should be replaced, delete the draft and run ostack receipt --attempt ${open.id} --outcome not_sent --evidence "<how you checked>".`
-            : `Check the Sent folder, then run ostack receipt --attempt ${open.id} with what actually happened.`;
+            ? `It is a draft: if the user sent it, run ostack gtm receipt --attempt ${open.id} --outcome sent with its IDs; if it was deleted or should be replaced, delete the draft and run ostack gtm receipt --attempt ${open.id} --outcome not_sent --evidence "<how you checked>".`
+            : `Check the Sent folder, then run ostack gtm receipt --attempt ${open.id} with what actually happened.`;
         throw new OstackError("open_attempt", `This lead has an unfinished ${open.status} attempt. ${how}`, {
           attempt: { id: open.id, status: open.status, reserved_at: open.reserved_at, channel: open.channel },
         });

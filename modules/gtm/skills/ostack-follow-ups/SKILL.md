@@ -10,7 +10,7 @@ This skill is the `gtm/follow-ups` workflow of ostack's gtm module, made of name
 ## Start every run
 
 1. `cd` to the workspace (the folder with `ostack.json`; if you are not in one, the error lists known workspaces) and run `ostack doctor`. If your shell does not keep the folder between commands, start each command with `cd <workspace> &&`. Stop on any `fail`. With no workspace there is nothing to follow up: hand over to the ostack-setup skill (or, in a scheduled run, stop and report it). Open setup items are for ostack-setup too: offer it when someone is present; otherwise mention it in the report.
-2. Run `ostack run start gtm/follow-ups`. If it reports `run_in_progress`, another run is already working: stop and say so. Run `ostack run end gtm/follow-ups` when you finish, including when you stop early.
+2. Run `ostack run start gtm/follow-ups` (a scheduled run's prompt adds `--scheduled`; keep it). If it reports `not_due`, the scheduler fired outside this workflow's hours: stop and report only that. If it reports `run_in_progress`, another run is already working: stop and say so. Run `ostack run end gtm/follow-ups` when you finish, including when you stop early.
 3. Run `ostack context --module gtm` and read every general note: who the user is, what they offer, their voice, learnings, and anything else they told you.
 4. Run the `inbox` step first, every run. `ostack gtm due` only knows what has been recorded, so it shows no replies until the inbox step records them.
 5. Run `ostack gtm due --for follow-ups` and work the queue in order, calling it again after each batch, until `next` is `done`.

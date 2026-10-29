@@ -57,7 +57,7 @@ export async function doctorCommand(): Promise<void> {
     }
     const status = await setupStatus(workspace);
     const open = [
-      status.pending_questions.length > 0 && `${status.pending_questions.length} setup question(s) to ask`,
+      status.pending_questions.length > 0 && `setup questions to ask: ${status.pending_questions.map((question) => question.id).join(", ")}`,
       status.changed_defaults.length > 0 && `${status.changed_defaults.length} customized step(s) whose default changed`,
       status.unknown_steps.length > 0 && `${status.unknown_steps.length} note(s) for unknown steps`,
       status.misplaced_notes.length > 0 && `${status.misplaced_notes.length} note(s) to move into their module's folder`,

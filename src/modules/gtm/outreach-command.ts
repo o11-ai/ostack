@@ -52,8 +52,8 @@ export async function reserveCommand(args: Args): Promise<void> {
     attempt,
     next:
       settings.mode === "draft"
-        ? `Create this exact message as a draft, then run: ostack receipt --attempt ${attempt.id} --outcome drafted`
-        : `Send this exact message now, then run: ostack receipt --attempt ${attempt.id} --outcome sent --external-id <message id> --thread-id <thread id>`,
+        ? `Create this exact message as a draft, then run: ostack gtm receipt --attempt ${attempt.id} --outcome drafted`
+        : `Send this exact message now, then run: ostack gtm receipt --attempt ${attempt.id} --outcome sent --external-id <message id> --thread-id <thread id>. To hold it for the user instead, create it as a draft and receipt --outcome drafted.`,
   });
 }
 
