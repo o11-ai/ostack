@@ -1,4 +1,4 @@
-import { OstackError } from "./errors.ts";
+import { OstackError } from "../../lib/errors.ts";
 
 /** Shared mailbox providers; a lead's email domain here says nothing about their company. */
 const PERSONAL_EMAIL_DOMAINS = new Set([

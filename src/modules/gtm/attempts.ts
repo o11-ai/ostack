@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { addDays, newId } from "./db.ts";
-import { OstackError } from "./errors.ts";
+import { OstackError } from "../../lib/errors.ts";
 import { findSuppression, getLead, leadIdentity, type Lead } from "./leads.ts";
 import { checkMessage } from "./message-check.ts";
 import type { Limits } from "./settings.ts";

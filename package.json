@@ -1,6 +1,6 @@
 {
   "name": "ostack",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Outbound your coding agent sets up by talking to you: plain-language customization, packs, and a local ledger that never double-sends.",
   "license": "MIT",
   "type": "module",

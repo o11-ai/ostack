@@ -16,8 +16,11 @@ while [ $# -gt 0 ]; do
 done
 R="$RUNS/$RUN"; rm -rf "$R"; mkdir -p "$R/home/.claude" "$R/bin" "$R/mock"
 cp "$H/fixtures/leads.csv" "$R/home/leads.csv"
-for t in mail crm cal web; do printf '#!/usr/bin/env bash\nexec bun "%s/mock.ts" %s "$@"\n' "$H" "$t" > "$R/bin/$t"; done
+for t in mail crm cal web scheduler; do printf '#!/usr/bin/env bash\nexec bun "%s/mock.ts" %s "$@"\n' "$H" "$t" > "$R/bin/$t"; done
 printf '#!/usr/bin/env bash\nexec bun "%s/askuser.ts" "$@"\n' "$H" > "$R/bin/askuser"
+# Stand-ins so nothing touches the machine's real crontab or starts a real agent.
+printf '#!/usr/bin/env bash\nf="%s/mock/crontab"; if [ "$1" = "-l" ]; then [ -f "$f" ] && cat "$f" || exit 1; else cat > "$f"; fi\n' "$R" > "$R/bin/crontab"
+for agent in claude codex; do printf '#!/usr/bin/env bash\necho "[%s stub] $*" >> "%s/mock/agent-runs.log"\n' "$agent" "$R" > "$R/bin/$agent"; done
 # Every ostack call is logged with its output, for auditing the run afterwards.
 cat > "$R/bin/ostack" <<EOS
 #!/usr/bin/env bash
@@ -33,7 +36,7 @@ cd "\$HOME/$CWD" 2>/dev/null || cd "\$HOME"
 EOS
 ( source "$R/env.sh"; "$OSTACK_SRC/setup" >/dev/null )
 if [ -n "$FROM" ]; then
-  [ -d "$FROM/home/gtm" ] && cp -r "$FROM/home/gtm" "$R/home/"
+  for ws in ostack gtm; do [ -d "$FROM/home/$ws" ] && cp -r "$FROM/home/$ws" "$R/home/"; done
   for f in "$FROM"/mock/*.json "$FROM"/mock/*.jsonl; do
     case "$(basename "$f")" in ostack-calls.jsonl|questions.jsonl|calls.jsonl) ;; *) [ -e "$f" ] && cp "$f" "$R/mock/" ;; esac
   done

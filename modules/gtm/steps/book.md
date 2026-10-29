@@ -9,6 +9,6 @@ When someone agrees to talk:
 - Otherwise read the user's real calendar (if a calendar tool is connected) and offer two or three open slots, written as local times with the timezone (convert from UTC; say the lead's local time too when you know it).
 - Never offer a time already booked or offered to someone else in a thread that is still open; check `cal` and your recent replies.
 - Create an invite only after they pick a time, from the user's calendar, with a clear title and the thread's context in the description.
-- Then `ostack observe --lead <id> --type meeting --external-id <event id>`.
+- Then `ostack gtm observe --lead <id> --type meeting --external-id <event id>`.
 
 Never book without their agreement, and never double-book the user.

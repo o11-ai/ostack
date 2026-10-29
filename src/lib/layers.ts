@@ -2,47 +2,58 @@ import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { OstackError } from "./errors.ts";
-import { parseFrontmatter, REPO_ROOT } from "./paths.ts";
+import { getModule } from "./modules.ts";
+import { parseFrontmatter } from "./paths.ts";
 import type { Step } from "./steps.ts";
 import { CAMPAIGNS_DIR, CUSTOM_DIR, LOCAL_DIR, PACKS_DIR, type Workspace } from "./workspace.ts";
 
 /**
- * Customizations are plain-language notes in folders stacked over the baseline, lowest priority first:
- * packs (in install order), the team's custom/, the campaign's folder, then the person's custom.local/.
- * A later layer refines the ones before it and wins where they conflict.
+ * Customizations are plain-language notes in folders stacked over a module's baseline, lowest priority first:
+ * the module's packs, the team's custom/ (shared by every module) and custom/<module>/, the campaign's folder,
+ * then the person's custom.local/ and custom.local/<module>/. A later layer refines the ones before it.
  */
-export type Layer = { name: string; dir: string };
+export type Layer = { name: string; dir: string; scope: "shared" | "module" };
 
 export type Note = { layer: string; file: string; path: string; text: string };
 
 /** Files in a layer folder that describe it rather than customize anything. */
 const META_FILES = new Set(["pack.md", "readme.md"]);
 
-export const SHIPPED_PACKS_DIR = join(REPO_ROOT, "packs");
+/** Before modules, gtm's step notes sat directly in custom/. They keep applying to gtm, and setup offers to move them. */
+const LEGACY_OWNER = "gtm";
 
-/** A workspace copy of a pack wins over the shipped one, so a team can pin or edit its own. */
-export function packDir(workspace: Workspace, name: string): string | null {
-  const local = join(workspace.root, PACKS_DIR, name);
-  if (existsSync(local)) return local;
-  const shipped = join(SHIPPED_PACKS_DIR, name);
-  return existsSync(shipped) ? shipped : null;
+/**
+ * Where a module's pack lives: a workspace copy wins over the shipped one, so a team can pin or edit its own.
+ * Workspaces from before modules kept their copies in packs/<name>; those still count for gtm.
+ */
+export async function packDir(workspace: Workspace, module: string, name: string): Promise<string | null> {
+  const candidates = [join(workspace.root, PACKS_DIR, module, name)];
+  if (module === LEGACY_OWNER && name !== module) candidates.push(join(workspace.root, PACKS_DIR, name));
+  candidates.push(join((await getModule(module)).dir, "packs", name));
+  return candidates.find((dir) => existsSync(dir)) ?? null;
 }
 
-export function layersFor(workspace: Workspace, campaign: string): Layer[] {
+export async function layersFor(workspace: Workspace, module: string, campaign: string): Promise<Layer[]> {
   const layers: Layer[] = [];
-  for (const pack of workspace.state.packs) {
-    const dir = packDir(workspace, pack);
+  for (const pack of workspace.state.modules[module]?.packs ?? []) {
+    const dir = await packDir(workspace, module, pack);
     if (!dir) throw new OstackError("pack_not_found", `Pack "${pack}" is installed but missing. Run "ostack packs remove ${pack}".`);
-    layers.push({ name: `pack:${pack}`, dir });
+    layers.push({ name: `pack:${pack}`, dir, scope: "module" });
   }
-  layers.push({ name: "custom", dir: join(workspace.root, CUSTOM_DIR) });
-  layers.push({ name: `campaign:${campaign}`, dir: join(workspace.root, CAMPAIGNS_DIR, campaign) });
-  layers.push({ name: "local", dir: join(workspace.root, LOCAL_DIR) });
+  layers.push({ name: "custom", dir: join(workspace.root, CUSTOM_DIR), scope: "shared" });
+  layers.push({ name: `custom/${module}`, dir: join(workspace.root, CUSTOM_DIR, module), scope: "module" });
+  if (module === LEGACY_OWNER) layers.push({ name: `campaign:${campaign}`, dir: join(workspace.root, CAMPAIGNS_DIR, campaign), scope: "module" });
+  layers.push({ name: "local", dir: join(workspace.root, LOCAL_DIR), scope: "shared" });
+  layers.push({ name: `local/${module}`, dir: join(workspace.root, LOCAL_DIR, module), scope: "module" });
   return layers.filter((layer) => existsSync(layer.dir));
 }
 
 export async function readNotes(layer: Layer): Promise<Note[]> {
-  const files = (await readdir(layer.dir)).filter((file) => file.endsWith(".md") && !META_FILES.has(file.toLowerCase())).sort();
+  const entries = await readdir(layer.dir, { withFileTypes: true });
+  const files = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !META_FILES.has(entry.name.toLowerCase()))
+    .map((entry) => entry.name)
+    .sort();
   return Promise.all(
     files.map(async (file) => {
       const path = join(layer.dir, file);
@@ -71,46 +82,54 @@ export function stepAliases(steps: Step[]): Map<string, string> {
   return new Map(steps.flatMap((step) => step.renamed_from.map((old): [string, string] => [old, step.id])));
 }
 
-export type StepContext = {
-  step: string;
-  summary: string;
-  default: string;
-  before: Note[];
-  notes: Note[];
-  after: Note[];
-};
+export type ClassifiedNote = { note: Note; target: NoteTarget; scope: Layer["scope"]; legacy: boolean };
 
-export async function allNotes(workspace: Workspace, campaign: string): Promise<Note[]> {
-  const notes = await Promise.all(layersFor(workspace, campaign).map(readNotes));
-  return notes.flat();
+/**
+ * Every note that applies to a module, with what it customizes. In shared layers only general notes count,
+ * except gtm's legacy step notes from before modules (marked `legacy`).
+ */
+export async function moduleNotes(workspace: Workspace, module: string, campaign: string, steps: Step[]): Promise<ClassifiedNote[]> {
+  const ids = new Set(steps.map((step) => step.id));
+  const aliases = stepAliases(steps);
+  const result: ClassifiedNote[] = [];
+  for (const layer of await layersFor(workspace, module, campaign)) {
+    for (const note of await readNotes(layer)) {
+      const target = classify(note.file, ids, aliases);
+      if (layer.scope === "shared" && target.kind !== "general") {
+        const known = "step" in target && ids.has(target.step);
+        if (module === LEGACY_OWNER && known) result.push({ note, target, scope: layer.scope, legacy: true });
+        else if (!known) result.push({ note, target: { kind: "general" }, scope: layer.scope, legacy: false });
+        continue;
+      }
+      result.push({ note, target, scope: layer.scope, legacy: false });
+    }
+  }
+  return result;
 }
 
+export type StepContext = { step: string; summary: string; default: string; before: Note[]; notes: Note[]; after: Note[] };
+
 export async function stepContext(workspace: Workspace, campaign: string, step: Step, steps: Step[]): Promise<StepContext> {
-  const ids = new Set(steps.map((item) => item.id));
-  const aliases = stepAliases(steps);
-  const context: StepContext = { step: step.id, summary: step.summary, default: step.body, before: [], notes: [], after: [] };
-  for (const note of await allNotes(workspace, campaign)) {
-    const target = classify(note.file, ids, aliases);
+  const context: StepContext = { step: step.ref, summary: step.summary, default: step.body, before: [], notes: [], after: [] };
+  for (const { note, target } of await moduleNotes(workspace, step.module, campaign, steps)) {
     if (target.kind === "general" || target.step !== step.id) continue;
-    const bucket = target.kind === "step" ? context.notes : context[target.kind];
-    bucket.push(note);
+    context[target.kind === "step" ? "notes" : target.kind].push(note);
   }
   return context;
 }
 
-export async function generalNotes(workspace: Workspace, campaign: string, steps: Step[]): Promise<Note[]> {
-  const ids = new Set(steps.map((item) => item.id));
-  const aliases = stepAliases(steps);
-  return (await allNotes(workspace, campaign)).filter((note) => classify(note.file, ids, aliases).kind === "general");
+export async function generalNotes(workspace: Workspace, module: string, campaign: string, steps: Step[]): Promise<Note[]> {
+  return (await moduleNotes(workspace, module, campaign, steps)).filter(({ target }) => target.kind === "general").map(({ note }) => note);
 }
 
-export type PackInfo = { name: string; description: string; kind: string; dir: string; shipped: boolean };
+export type PackInfo = { name: string; module: string; description: string; kind: string; dir: string; shipped: boolean };
 
-export async function describePack(dir: string, name: string, shipped: boolean): Promise<PackInfo> {
+export async function describePack(dir: string, module: string, name: string, shipped: boolean): Promise<PackInfo> {
   const meta = join(dir, "pack.md");
   const { data }: { data: Record<string, unknown> } = existsSync(meta) ? parseFrontmatter(await Bun.file(meta).text()) : { data: {} };
   return {
     name,
+    module,
     description: typeof data.description === "string" ? data.description : "",
     kind: typeof data.kind === "string" ? data.kind : "other",
     dir,

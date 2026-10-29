@@ -1,8 +1,8 @@
 import { basename, extname } from "node:path";
-import { integer, oneOf, optional, readFileOrStdin, required, textInput, type Args } from "../lib/args.ts";
-import { listEvents } from "../lib/events.ts";
-import { parseCsv } from "../lib/csv.ts";
-import { OstackError } from "../lib/errors.ts";
+import { integer, oneOf, optional, readFileOrStdin, required, textInput, type Args } from "../../lib/args.ts";
+import { listEvents } from "./events.ts";
+import { parseCsv } from "./csv.ts";
+import { OstackError } from "../../lib/errors.ts";
 import {
   addLeads,
   checkContact,
@@ -17,9 +17,9 @@ import {
   updateLead,
   type LeadInput,
   type LeadUpdate,
-} from "../lib/leads.ts";
-import { print } from "../lib/output.ts";
-import { isRecord } from "../lib/paths.ts";
+} from "./leads.ts";
+import { print } from "../../lib/output.ts";
+import { isRecord } from "../../lib/paths.ts";
 import { campaignOf, openContext } from "./context.ts";
 
 const LEAD_FIELDS = ["name", "title", "company", "domain", "email", "linkedin_url", "source", "research"] as const;

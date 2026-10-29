@@ -51,6 +51,11 @@ const HELP: Record<string, string> = {
   cal slots [--days 5] [--minutes 15]      open slots (America/New_York)
   cal invite --to <email> --start <iso> --minutes <n> --title <t> [--description <d>]   -> event_id
   cal events`,
+  scheduler: `scheduler (Claude Desktop scheduled tasks on this computer)
+  scheduler create --name <kebab-name> --folder <path> --cron "<5-field cron, local time>" --instructions <text>
+  scheduler list
+  scheduler run <name>        run it once now (prints what the run would start with)
+  scheduler delete <name>`,
   web: `web (internet access in this sandbox)
   web search <query>      search results
   web fetch <url>         page text`,
@@ -133,6 +138,21 @@ if (tool === "mail") {
     log("events.jsonl", ev); out({ event_id: ev.event_id });
   } else if (cmd === "events") out(rows("events.jsonl"));
   else fail(`unknown cal command ${cmd}`);
+} else if (tool === "scheduler") {
+  const file = join(dir, "scheduled.json");
+  const tasks: Record<string, Record<string, string>> = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  const save = () => writeFileSync(file, JSON.stringify(tasks, null, 2));
+  if (cmd === "create") {
+    for (const key of ["name", "folder", "cron", "instructions"]) if (!flags[key]) fail(`--${key} is required`);
+    if (!/^[a-z0-9-]+$/.test(flags.name!)) fail("name must be lowercase kebab-case");
+    if (flags.cron!.trim().split(/\s+/).length !== 5) fail("cron must have 5 fields");
+    if (tasks[flags.name!]) fail("a task with that name exists; delete it first");
+    tasks[flags.name!] = { name: flags.name!, folder: flags.folder!, cron: flags.cron!, instructions: flags.instructions!, created: new Date().toISOString() };
+    save(); out(tasks[flags.name!]);
+  } else if (cmd === "list") out(Object.values(tasks));
+  else if (cmd === "run") { const task = tasks[pos[0]!] ?? fail("no such task"); out({ started: task!.name, prompt: task!.instructions, folder: task!.folder }); }
+  else if (cmd === "delete") { delete tasks[pos[0]!]; save(); out({ deleted: pos[0] }); }
+  else fail(`unknown scheduler command ${cmd}`);
 } else if (tool === "web") {
   const sites = join(import.meta.dir, "fixtures", "sites");
   const pages = readdirSync(sites).map((f) => ({ url: `https://${f.replace(/\.md$/, "")}`, text: readFileSync(join(sites, f), "utf8") }));

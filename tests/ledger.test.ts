@@ -3,16 +3,17 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { receipt, reserve } from "../src/lib/attempts.ts";
-import { openLedger } from "../src/lib/db.ts";
-import { due } from "../src/lib/due.ts";
+import { receipt, reserve } from "../src/modules/gtm/attempts.ts";
+import { openLedger } from "../src/modules/gtm/db.ts";
+import { due } from "../src/modules/gtm/due.ts";
 import { OstackError } from "../src/lib/errors.ts";
-import { observe } from "../src/lib/events.ts";
-import { addLeads, getLead, parseFields, qualifyLead, removeLead, suppress, updateLead } from "../src/lib/leads.ts";
-import { applySetting, DEFAULT_LIMITS, defaultState, nextGap, type Limits } from "../src/lib/settings.ts";
+import { observe } from "../src/modules/gtm/events.ts";
+import { addLeads, getLead, parseFields, qualifyLead, removeLead, suppress, updateLead } from "../src/modules/gtm/leads.ts";
+import { applySetting, DEFAULT_LIMITS, defaultSettings, nextGap, type Limits } from "../src/modules/gtm/settings.ts";
 
 function setup(limits: Partial<Limits> = {}) {
-  const state = defaultState("0.2.0");
+  // No send window, so these tests do not depend on the time of day they run at.
+  const state = { ...defaultSettings(), send_window: null };
   state.limits = { ...DEFAULT_LIMITS, ...limits };
   return { db: openLedger(":memory:"), state, limits: state.limits };
 }
@@ -176,7 +177,7 @@ describe("due scopes", () => {
 
 describe("follow-up schedule", () => {
   test("follow_up_days sets the gaps and the touch ceiling, and max_touches keeps them in step", () => {
-    const state = defaultState("0.3.0");
+    const state = defaultSettings();
     const two = applySetting(state, "follow_up_days", "2,5");
     expect(two.limits.max_touches).toBe(3);
     expect([nextGap(two, 1), nextGap(two, 2), nextGap(two, 3)]).toEqual([2, 5, null]);
@@ -202,5 +203,24 @@ describe("lead removal", () => {
     qualifyLead(db, contacted!, "qualified", "fits", "beta.io");
     reserve(db, limits, { leadId: contacted!, kind: "touch", channel: "email", subject: "beta", body: BODY });
     expect(code(() => removeLead(db, contacted!))).toBe("lead_has_history");
+  });
+});
+
+describe("send window", () => {
+  test("cold touches wait for the window; replies do not", () => {
+    const { db, state, limits } = setup();
+    const [fresh, replied] = addLeads(db, "main", [{ email: "a@acme.io" }, { email: "b@beta.io" }]).added;
+    for (const id of [fresh!, replied!]) qualifyLead(db, id, "qualified", "fits", "site");
+    const sent = reserve(db, limits, { leadId: replied!, kind: "touch", channel: "email", subject: "beta", body: BODY });
+    receipt(db, limits, { attemptId: sent.id, outcome: "sent", externalId: "m1", next: { inDays: 3 } });
+    observe(db, { leadId: replied!, type: "reply", externalId: "r1" });
+    const windowed = { ...state, send_window: { days: [1, 2, 3, 4, 5], from: 9 * 60, to: 17 * 60 } };
+    // Sunday 2026-11-01, noon UTC: closed.
+    const sunday = new Date("2026-11-01T12:00:00Z");
+    const queue = due(db, windowed, "main", 10, sunday, "all", "UTC");
+    expect(queue.new).toHaveLength(0);
+    expect(queue.replies.map((lead) => lead.id)).toEqual([replied!]);
+    expect(queue.send_window).toEqual({ window: "weekdays 09:00-17:00", open: false, opens_at: "2026-11-02T09:00:00.000Z" });
+    expect(due(db, windowed, "main", 10, new Date("2026-11-02T10:00:00Z"), "outbound", "UTC").new.map((lead) => lead.id)).toEqual([fresh!]);
   });
 });

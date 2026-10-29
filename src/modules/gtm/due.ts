@@ -1,7 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { budget, type Attempt, type Budget, lastSent } from "./attempts.ts";
 import { parseFields, type Lead } from "./leads.ts";
-import type { State } from "./settings.ts";
+import { formatWindow, isOpen, nextOpen } from "../../lib/time.ts";
+import type { GtmSettings } from "./settings.ts";
 
 export type DueLead = {
   id: string;
@@ -28,7 +29,9 @@ export type Due = {
   campaign: string;
   /** Read the inbox from here: the first message in any thread a reply could still arrive on. Null when none is open. */
   inbox_since: string | null;
-  mode: State["mode"];
+  mode: GtmSettings["mode"];
+  /** Cold messages wait for this window; replies never do. */
+  send_window: { window: string; open: boolean; opens_at: string | null } | null;
   budget: Budget;
   next: NextAction;
   /** Attempts whose outcome is unknown: settle these before anything else. */
@@ -42,7 +45,15 @@ export type Due = {
 };
 
 /** The work queue for one campaign, in the order it should be handled. */
-export function due(db: Database, state: State, campaign: string, limit: number, now = new Date(), scope: DueScope = "all"): Due {
+export function due(
+  db: Database,
+  state: GtmSettings,
+  campaign: string,
+  limit: number,
+  now = new Date(),
+  scope: DueScope = "all",
+  timeZone = "UTC",
+): Due {
   const at = now.toISOString();
   const current = budget(db, state.limits, now);
   const ready = `(defer_until IS NULL OR defer_until <= $now)
@@ -66,13 +77,16 @@ export function due(db: Database, state: State, campaign: string, limit: number,
   const reconcile = unsettled.filter((attempt) => attempt.status !== "drafted");
   const drafts = unsettled.filter((attempt) => attempt.status === "drafted").map(({ expires_at: _expires, ...draft }) => draft);
 
+  const window = state.send_window;
+  const windowOpen = window ? isOpen(window, timeZone, now) : true;
   const conversations = scope !== "outbound";
   const prospecting = scope !== "follow-ups";
   const replies = conversations ? select(`status = 'replied' AND ${ready}`, "updated_at", limit) : [];
   // Due follow-ups always hold back their share of the budget, even when outbound is the one asking.
   const followUpsDue = select(`status = 'active' AND next_due_at <= $now AND ${ready}`, "next_due_at", Math.min(limit, current.remaining_touches));
-  const followUps = conversations ? followUpsDue : [];
-  const fresh = prospecting
+  // Outside the send window, cold touches wait; replies and everything that sends nothing go on.
+  const followUps = conversations && windowOpen ? followUpsDue : [];
+  const fresh = prospecting && windowOpen
     ? select(
         `status = 'qualified' AND step = 0 AND ${ready}`,
         "updated_at",
@@ -99,6 +113,9 @@ export function due(db: Database, state: State, campaign: string, limit: number,
     campaign,
     inbox_since: open?.since ?? null,
     mode: state.mode,
+    send_window: window
+      ? { window: formatWindow(window), open: windowOpen, opens_at: windowOpen ? null : (nextOpen(window, timeZone, now)?.toISOString() ?? null) }
+      : null,
     budget: current,
     next: nextAction(queues, current, prospecting),
     ...queues,
@@ -126,7 +143,7 @@ function project(db: Database, lead: Lead): DueLead {
   return view;
 }
 
-function nextAction(queues: Omit<Due, "campaign" | "inbox_since" | "mode" | "budget" | "next" | "drafts">, current: Budget, prospecting: boolean): NextAction {
+function nextAction(queues: Omit<Due, "campaign" | "inbox_since" | "mode" | "send_window" | "budget" | "next" | "drafts">, current: Budget, prospecting: boolean): NextAction {
   if (queues.reconcile.length > 0) return "reconcile";
   if (queues.replies.length > 0) return "replies";
   if (queues.follow_ups.length > 0) return "follow_ups";

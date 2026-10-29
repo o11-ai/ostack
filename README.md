@@ -19,19 +19,21 @@
 
 ---
 
-ostack is a **baseline you shape by talking**. Your agent interviews you, writes your answers down as short plain-English notes, tests each one against your real tools, and from then on finds leads, writes, sends, follows up and books meetings exactly the way you described. Updates improve the baseline without ever touching what you customized.
+ostack is a **baseline you shape by talking**. Your agent interviews you, writes your answers down as short plain-English notes, tests each one against your real tools, and from then on runs your workflows exactly the way you described, on a schedule in your timezone. Updates improve the baseline without ever touching what you customized.
+
+The first module is **gtm**: it finds leads, writes, sends, follows up and books meetings. More modules will sit next to it, each adding its own workflows without moving anything you already have.
 
 > **No hosted backend, no account, no YAML.** Your agent works through the mail, LinkedIn, calendar and CRM tools it already has. ostack brings the method, and a local ledger guarantees nobody is contacted twice.
 
 ## ⚡ Install
 
 ```bash
-git clone --depth 1 https://github.com/o11-ai/ostack.git ~/ostack
-~/ostack/setup                  # Claude Code. Or: --host codex | cursor | gemini | auto
-mkdir ~/gtm && cd ~/gtm && ostack init
+git clone --depth 1 https://github.com/o11-ai/ostack.git ~/.ostack/ostack
+~/.ostack/ostack/setup          # Claude Code. Or: --host codex | cursor | gemini | auto
+mkdir ~/ostack && cd ~/ostack && ostack init
 ```
 
-Then open your agent in `~/gtm` and say **"set up ostack"**.
+Then open your agent in `~/ostack` and say **"set up ostack"**.
 
 ## 💬 Setup is a conversation
 
@@ -53,22 +55,22 @@ agent   ✓ wrote custom/write.md. Here's a real draft for Dana at Ledgerly: ...
 
 Change anything later the same way: *"we sell to dentists now"*, *"stop mentioning pricing"*, *"send from my Outlook"*.
 
-## 🧩 Three skills
+## 🧩 Skills
 
 <table>
   <tr>
-    <th width="33%">🎯 <code>outbound</code></th>
-    <th width="33%">📬 <code>follow-ups</code></th>
+    <th width="33%">🎯 <code>ostack-outbound</code> (gtm)</th>
+    <th width="33%">📬 <code>ostack-follow-ups</code> (gtm)</th>
     <th width="33%">🛠️ <code>ostack-setup</code></th>
   </tr>
   <tr>
     <td>Finds, qualifies and researches leads, then writes and sends the first message.</td>
     <td>Reads the inbox, answers replies, sends follow-ups that are due, and books meetings.</td>
-    <td>Interviews you, writes and tests your notes, remembers corrections, and reviews updates.</td>
+    <td>Interviews you, writes and tests your notes, schedules your workflows, remembers corrections, and reviews updates.</td>
   </tr>
   <tr>
     <td><i>"run my outbound"</i><br>⏰ weekday mornings</td>
-    <td><i>"did anyone reply?"</i><br>⏰ hourly</td>
+    <td><i>"did anyone reply?"</i><br>⏰ every 30 minutes in working hours</td>
     <td><i>"use my template"</i><br>⏰ whenever you want a change</td>
   </tr>
 </table>
@@ -83,7 +85,7 @@ flowchart TB
     direction LR
     find --> qualify --> research --> write --> send1["send"] --> record1["record"]
   end
-  subgraph F["📬 follow-ups · hourly"]
+  subgraph F["📬 follow-ups · every 30 minutes"]
     direction LR
     inbox --> reply --> book --> send2["send"] --> record2["record"]
     inbox --> followup["follow-up"] --> send2
@@ -92,6 +94,18 @@ flowchart TB
 ```
 
 `record` is where your CRM, spreadsheet or Slack gets updated. `report` closes every run with a summary.
+
+## ⏰ Runs on its own, in your timezone
+
+Say *"schedule my workflows"*. The agent shows each workflow's suggested schedule, adjusts it to what you say, and creates it where you work:
+
+| Where | How |
+| --- | --- |
+| **Claude Desktop** | A local scheduled task on your workspace folder, so it has your files and connectors |
+| **Codex app** | A local automation on your workspace folder |
+| **Anything else** | `ostack schedule cron install` starts Claude or Codex headless from cron |
+
+ostack keeps the schedule (`ostack schedule list`), and each task only runs `ostack prompt <workflow>`, so tasks stay correct after upgrades. Runs never overlap, cold messages wait for your sending hours (`gtm.send_window`, weekdays 08:00-18:00 by default), and a run that catches up after your laptop slept still respects them.
 
 ## 🥞 How customization stacks
 
@@ -106,27 +120,28 @@ Your notes are markdown files the agent writes. They sit in layers on top of the
 
 | A note named… | Applies… | Example |
 | --- | --- | --- |
-| `write.md` | whenever that step runs | *"Always use this template: …"* |
-| `before-send.md` / `after-record.md` | right before or after a step | *"Update Lightfield: stages are …"* |
-| anything else (`about.md`, `voice.md`, `learnings.md`) | as context for every run | *"Never mention pricing."* |
+| `custom/about.md`, `voice.md`, `learnings.md`, … | as context for every module | *"Never mention pricing."* |
+| `custom/gtm/write.md` | whenever that gtm step runs | *"Always use this template: …"* |
+| `custom/gtm/before-send.md` / `after-record.md` | right before or after a step | *"Update Lightfield: stages are …"* |
 
 <details>
 <summary><b>📁 What a workspace looks like</b></summary>
 
 ```
-~/gtm/
-├── ostack.json          managed by the CLI: mode, limits, follow-up schedule, packs, setup progress
-├── custom/              your team's notes
-│   ├── about.md         what you sell, the one ask, proof, what never to claim
-│   ├── voice.md         how you write, real samples, signature
-│   ├── write.md         your template
-│   ├── send.md          "send from sam@ in Outlook web"
-│   ├── after-record.md  "keep Lightfield in step"
-│   └── learnings.md     corrections you asked the agent to remember
-├── custom.local/        your personal notes
-├── campaigns/           notes for individual campaigns
-├── scripts/             any small scripts a customization needs (an email API, a webhook)
-└── .ostack/ledger.db    every lead, message, reply and opt-out (SQLite)
+~/ostack/
+├── ostack.json            managed by the CLI: timezone, modules and their settings, schedules, setup progress
+├── custom/                your team's notes
+│   ├── about.md           what you do, proof, what never to claim (every module reads it)
+│   ├── voice.md           how you write, real samples, signature
+│   ├── learnings.md       corrections you asked the agent to remember
+│   └── gtm/               notes for the gtm module
+│       ├── write.md       your template
+│       ├── send.md        "send from sam@ in Outlook web"
+│       └── after-record.md  "keep Lightfield in step"
+├── custom.local/          your personal notes (same layout)
+├── campaigns/             gtm notes for individual campaigns
+├── scripts/               any small scripts a customization needs (an email API, a webhook)
+└── .ostack/gtm.db         gtm's ledger: every lead, message, reply and opt-out (SQLite)
 ```
 
 </details>
@@ -166,6 +181,7 @@ These hold whatever your notes say, because the CLI enforces them rather than re
 | ✋ **Opt-outs stick** | Bounces and opt-outs block that address permanently. |
 | 💬 **Replies pause** | A human reply stops the cold sequence for that person. |
 | 📏 **Hard limits** | Daily volume and the follow-up schedule are ceilings. Unfilled `{{placeholders}}` and `[template slots]` are rejected. |
+| ⏱️ **One run at a time, at sensible hours** | Runs of a workflow never overlap, and cold messages wait for the send window in your timezone. |
 | 🧯 **No accidental writes** | Unknown flags are refused, imports can be previewed with `--dry-run`, and only never-contacted leads can be removed. |
 
 <details>
@@ -175,16 +191,29 @@ Every command prints JSON for the agent. `ostack help` lists them all. The ones 
 
 | Command | Does |
 | --- | --- |
-| `ostack doctor` | Checks the install, the workspace and your customizations |
-| `ostack status` | Lead counts and today's budget |
+| `ostack doctor` | Checks the install, the workspace, your customizations and schedules |
+| `ostack modules list` | Modules you can enable, and their workflows |
+| `ostack schedule list` | Each workflow's schedule in your timezone, and where it is installed |
+| `ostack schedule set gtm/outbound --at 07:50` | Run outbound at 07:50 on weekdays |
 | `ostack context [step]` | Exactly what the agent will read, overall or for one step (`--files` for just the note names) |
-| `ostack settings show` | Mode (draft or send), limits and the follow-up schedule |
-| `ostack settings set follow_up_days 2,5` | Two follow-ups: 2 days after the first message, then 5 days later |
+| `ostack settings show` | Timezone, and each module's settings |
+| `ostack settings set gtm.follow_up_days 2,5` | Two follow-ups: 2 days after the first message, then 5 days later |
 | `ostack packs list` | Shared starting points to install |
-| `ostack leads list` | Your leads |
-| `ostack leads add --input-file leads.csv --dry-run` | Preview an import |
-| `ostack suppress --email <x> --reason <why>` | Never contact someone again |
+| `ostack gtm status` | Lead counts and today's budget |
+| `ostack gtm leads add --input-file leads.csv --dry-run` | Preview an import |
+| `ostack gtm suppress --email <x> --reason <why>` | Never contact someone again |
 | `ostack upgrade` | Pulls the latest baseline |
+
+Commands from before modules (`ostack status`, `ostack due`, …) still work and mean the gtm ones.
+
+</details>
+
+<details>
+<summary><b>⬆️ Upgrading from 0.3 or earlier</b></summary>
+
+`ostack upgrade`, then tell your agent "review ostack updates". Everything moves into the gtm module the first time any command runs: settings and answers, and `.ostack/ledger.db` becomes `.ostack/gtm.db`. Your notes keep working where they are, and the review offers to move step notes such as `custom/write.md` into `custom/gtm/`. The skills are renamed `ostack-outbound` and `ostack-follow-ups`; old links are removed for you.
+
+If you cloned ostack to `~/ostack` before, it keeps working there. Only new installs use `~/.ostack/ostack`, so `~/ostack` is free for your workspace.
 
 </details>
 
@@ -208,12 +237,12 @@ bun test ./tests
 bun run src/cli.ts help
 ```
 
-- **Skills** live in `skills/` and **step defaults** in `steps/`, all plain Markdown.
+- **Core** (setup, notes, packs, schedules) lives in `skills/` and `src/`; each **module** lives in `modules/<id>/` with a `module.md` manifest (its workflows and their default schedules), `skills/`, `steps/`, `packs/` and `questions.md`, plus any code in `src/modules/<id>/`. A new module never needs to move anything else.
 - **Step ids and setup-question ids are the stable surface** that notes attach to:
   - Rename a step only by listing the old name in `renamed_from` in its frontmatter.
   - Bump a step's `changed` version when its default changes meaningfully, and say what changed in `change`.
-- **New setup questions** go in [`questions.md`](skills/ostack-setup/references/questions.md) with a `Since` version.
+- **New setup questions** go in the module's `questions.md` (or [core](skills/ostack-setup/references/questions.md)) with a `Since` version.
 - **Test skill changes with a real agent** in [`evals/agent-sandbox`](evals/agent-sandbox): a sandboxed mailbox, CRM, calendar and web, so a small model can run setup, outbound and follow-ups end to end while you read where it got lost.
-- **New packs** in `packs/` are very welcome. Recruiting agencies, dev tools, local services: all of it.
+- **New packs** in `modules/gtm/packs/` are very welcome, and so are new modules. Recruiting agencies, dev tools, local services: all of it.
 
 <p align="center"><sub>MIT · built by <a href="https://o11.ai">o11</a></sub></p>

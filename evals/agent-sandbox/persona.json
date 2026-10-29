@@ -11,5 +11,6 @@
   "report": "Just tell me in chat.",
   "schedule": "Not yet, I'll run it by hand for now.",
   "other": "Use your judgment, the default is fine.",
-  "approve": "Looks good to me, go with it. If something's off I'll tell you."
+  "approve": "Looks good to me, go with it. If something's off I'll tell you.",
+  "timezone": "New York. America/New_York."
 }

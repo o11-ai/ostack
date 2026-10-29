@@ -21,12 +21,12 @@ cd evals/agent-sandbox
 ./new-run.sh setup-1                                  # fresh machine
 ./prompt.sh setup-1 "set up ostack"                   # paste this as the agent's prompt
 
-./new-run.sh outbound-1 --from setup-1 --cwd gtm      # continue from that workspace
+./new-run.sh outbound-1 --from setup-1 --cwd ostack      # continue from that workspace
 touch runs/outbound-1/mock/fail-next-send
 ./prompt.sh outbound-1 "the previews looked good. switch to sending and run my outbound"
 
-./new-run.sh replies-1 --from outbound-1 --cwd gtm
-bun timewarp.ts runs/replies-1/home/gtm/.ostack/ledger.db 2.1 runs/replies-1/mock   # two days later
+./new-run.sh replies-1 --from outbound-1 --cwd ostack
+bun timewarp.ts runs/replies-1/home/ostack/.ostack/gtm.db 2.1 runs/replies-1/mock   # two days later
 bun inject-replies.ts runs/replies-1 '[{"to":"dana@ledgerly.example","from":"Dana <dana@ledgerly.example>","body":"happy to chat, what times work?"}]'
 ./prompt.sh replies-1 "did anyone reply?"
 ```
@@ -39,7 +39,7 @@ For a scheduled run, give the agent the output of `ostack prompt follow-ups` ins
 - `mock/ostack-calls.jsonl`: every ostack command, its exit code and output. Non-zero exits are the first place to look.
 - `mock/sent.jsonl`, `drafts.jsonl`, `crm.json`, `events.jsonl`: what actually reached the outside world. Check that nobody got two messages, opt-outs got nothing, and repliers got no cold follow-up.
 - `mock/questions.jsonl`: what the agent asked the user, in order.
-- `home/gtm/custom/`: the notes setup wrote. Look for settings copied into notes and facts stated twice.
+- `home/ostack/custom/`: the notes setup wrote. Look for settings copied into notes and facts stated twice.
 
 `askuser` answers by topic, so a follow-up question on the same topic gets the same answer. Agents sometimes report that as the user repeating themselves; it is a limit of the stand-in, not of the skills.
 

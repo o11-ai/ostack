@@ -5,122 +5,105 @@ import { printError, printText } from "./lib/output.ts";
 import { readVersion } from "./lib/version.ts";
 import { contextCommand, settingsCommand, setupCommand, stepsCommand } from "./commands/customize.ts";
 import { doctorCommand } from "./commands/doctor.ts";
-import { checkCommand, leadsCommand } from "./commands/leads.ts";
-import {
-  deferCommand,
-  dueCommand,
-  observeCommand,
-  receiptCommand,
-  reserveCommand,
-  statusCommand,
-  suppressCommand,
-} from "./commands/outreach.ts";
+import { runCommand, scheduleCommand } from "./commands/schedule.ts";
 import { upgradeCommand } from "./commands/upgrade.ts";
-import { campaignsCommand, initCommand, packsCommand, promptCommand } from "./commands/workspace.ts";
+import { initCommand, modulesCommand, packsCommand, promptCommand } from "./commands/workspace.ts";
+import { MODULE_CODE } from "./modules/index.ts";
 
-const HELP = `ostack: a customizable go-to-market baseline for coding agents
+const HELP = `ostack: workflows for coding agents that you customize by talking
 
 Workspace and customization
-  init [--dir <path>] [--packs a,b]            create an empty workspace (then ask your agent to "set up ostack")
-  context [<step>|<note>] [--campaign <name>] [--files]   what to know before a run (--files: note names only),
+  init [--dir <path>] [--modules gtm] [--packs gtm/gmail] [--timezone <IANA name>]   create an empty workspace
+  modules list | add <id> | remove <id>        which modules (families of workflows) this workspace uses
+  context [<step>|<note>] [--module <id>] [--campaign <name>] [--files]   what to know before a run (--files: note names only),
                                                or one step's default plus every customization of it
-  steps                                        the named steps customizations attach to
-  settings show | settings set <key> <value>     mode (draft|send), new_per_day, touches_per_day, per_company,
-                                               follow_up_days (days after the previous touch for each follow-up, e.g. 3,4,7, or none)
+  steps [--module <id>]                        the named steps customizations attach to, such as gtm/write
+  settings show | settings set <key> <value>   timezone, or a module's own, such as gtm.mode (see "ostack gtm help")
   setup status | answer <question> [--skip] | reviewed | reset [--question <id>]
-  packs list | add <name> [--from <folder>] | remove <name> | show <name>   (or --name <name>)
-  campaigns                                    campaigns that have their own notes
+  packs list | add <name> [--from <folder>] | remove <name> | show <name>   (or --name <name>); names like gtm/gmail
   doctor                                       check install, workspace and customizations
-  prompt outbound|follow-ups [--campaign]      the instruction for a scheduled run
   upgrade                                      pull the latest ostack (your workspace is never touched)
 
-Each run
-  due --for outbound|follow-ups [--campaign] [--limit 10]   what that skill should do next, in order
-  status [--campaign <name>]                    lead counts and today's budget
-  check --email|--linkedin|--domain <value>     history and suppression before researching
+Schedules (in the workspace timezone)
+  schedule list                                every workflow, its schedule and where it is installed
+  schedule set <workflow> --at HH:MM | --every <minutes> [--from HH:MM] [--to HH:MM] [--offset <minutes>] [--days weekdays]
+  schedule on|off <workflow>
+  schedule spec <workflow> --host claude|codex|cron   exactly what to create in that scheduler
+  schedule installed|uninstalled <workflow> --host claude|codex|cron [--name <task name>]
+  schedule cron show|install|remove [--agent claude|codex]   for agents without a scheduler
+  prompt <workflow> [--campaign <name>]        the instruction a scheduled run follows
+  run start|end <workflow>                     one run of a workflow at a time
 
-Leads
-  leads add --input-file <file.json|file.csv|-> [--source <where they came from>] [--campaign <name>] [--dry-run]
-          JSON: [{"name","email","linkedin_url","company","domain","title","source", ...}]; CSV: a header row.
-          email or linkedin_url is required; any other key is kept in the lead's fields
-  leads list [--campaign] [--status] [--search] [--limit]
-  leads show --id <lead>
-  leads update --id <lead> [--email] [--linkedin-url] [--name] [--title] [--company] [--domain] [--research|--research-file] [--fields '<json>']
-  leads qualify --id <lead> --status qualified|disqualified --reason <text> --evidence <urls and facts>
-  leads close --id <lead> --status meeting|completed|stopped --reason <text>
-  leads remove --id <lead>                      undo a mistaken import (only leads never messaged)
-
-Messages (every one: reserve, send, receipt)
-  reserve --lead <id> --kind touch|reply --channel <email|linkedin|...> [--subject] --body|--body-file
-  receipt --attempt <id> --outcome sent|drafted|not_sent|uncertain [--external-id] [--thread-id] [--evidence]
-          [--next-in-days <n> | --last]        override the follow-up schedule for this lead (e.g. "ping me in two weeks")
-  observe --lead <id> --type reply|bounce|opt_out|out_of_office|meeting|note|<your own>
-          [--body|--body-file] [--external-id] [--until] [--occurred-at]
-  defer --lead <id> --until <date> --reason <text>
-  suppress --email|--domain|--linkedin <value> --reason <text>
+Module commands: ostack <module> <command>. "ostack gtm help" lists gtm's.
 
 Global: --workspace <path> (or OSTACK_WORKSPACE). All commands print JSON.`;
 
 const COMMANDS: Record<string, (args: Args) => Promise<void>> = {
   init: initCommand,
+  modules: modulesCommand,
   context: contextCommand,
   steps: stepsCommand,
   settings: settingsCommand,
   setup: setupCommand,
   packs: packsCommand,
-  campaigns: campaignsCommand,
   doctor: doctorCommand,
-  prompt: promptCommand,
   upgrade: upgradeCommand,
-  due: dueCommand,
-  status: statusCommand,
-  check: checkCommand,
-  leads: leadsCommand,
-  reserve: reserveCommand,
-  receipt: receiptCommand,
-  observe: observeCommand,
-  defer: deferCommand,
-  suppress: suppressCommand,
+  schedule: scheduleCommand,
+  prompt: promptCommand,
+  run: runCommand,
 };
 
+/** Before modules, gtm's commands sat at the top level (`ostack due`). They keep working. */
+const LEGACY_MODULE = "gtm";
+
 async function main(): Promise<void> {
-  const args = parseArgs(Bun.argv.slice(2));
-  const command = args.positionals[0];
+  let args = parseArgs(Bun.argv.slice(2));
   const workspace = optional(args, "workspace");
   if (workspace) process.env.OSTACK_WORKSPACE = resolve(workspace);
+  let command = args.positionals[0];
   if (command === "version" || args.flags.version === true) return printText(await readVersion());
   if (!command || command === "help") return printText(HELP);
-  if (args.flags.help === true || args.positionals.slice(1).includes("help")) return printText(helpFor(command));
-  const handler = COMMANDS[command];
-  if (!handler) throw new OstackError("unknown_command", `Unknown command "${command}". Run "ostack help".`);
-  checkFlags(command, args);
+  let help = HELP;
+  let prefix = "";
+  const module = MODULE_CODE[command] ? command : MODULE_CODE[LEGACY_MODULE]?.commands[command] && !COMMANDS[command] ? LEGACY_MODULE : null;
+  if (module) {
+    if (command === module) args = { ...args, positionals: args.positionals.slice(1) };
+    command = args.positionals[0];
+    help = MODULE_CODE[module]!.help;
+    prefix = `${module} `;
+    if (!command || command === "help") return printText(`ostack ${module} commands\n\n${help}`);
+  }
+  if (args.flags.help === true || args.positionals.slice(1).includes("help")) return printText(helpFor(help, command!));
+  const handler = module ? MODULE_CODE[module]!.commands[command!] : COMMANDS[command!];
+  if (!handler) throw new OstackError("unknown_command", `Unknown command "${prefix}${command}". Run "ostack ${prefix}help".`);
+  checkFlags(help, `${prefix}${command}`, command!, args);
   await handler(args);
 }
 
 const GLOBAL_FLAGS = ["workspace", "help", "version"];
 
 /** Rejects flags a command does not take, so a typo or an imagined flag (--dry-run) never runs the real thing. */
-function checkFlags(command: string, args: Args): void {
-  const help = helpFor(command);
-  const known = new Set([...GLOBAL_FLAGS, ...[...help.matchAll(/--([a-z][a-z-]*)/g)].map((match) => match[1]!)]);
+function checkFlags(help: string, name: string, command: string, args: Args): void {
+  const usage = helpFor(help, command);
+  const known = new Set([...GLOBAL_FLAGS, ...[...usage.matchAll(/--([a-z][a-z-]*)/g)].map((match) => match[1]!)]);
   const unknown = Object.keys(args.flags).filter((flag) => !known.has(flag));
   if (unknown.length > 0) {
-    throw new OstackError("unknown_flag", `ostack ${command} does not take ${unknown.map((flag) => `--${flag}`).join(", ")}. Nothing was changed.`, {
-      usage: help.split("\n").map((line) => line.trim()),
+    throw new OstackError("unknown_flag", `ostack ${name} does not take ${unknown.map((flag) => `--${flag}`).join(", ")}. Nothing was changed.`, {
+      usage: usage.split("\n").map((line) => line.trim()),
     });
   }
 }
 
 /** The help lines for one command, with their continuation lines. */
-function helpFor(command: string): string {
-  const lines = HELP.split("\n");
+function helpFor(help: string, command: string): string {
+  const lines = help.split("\n");
   const picked = lines.filter((line, index) => {
     const own = (text: string) => text.trimStart().split(/\s/)[0] === command;
     if (own(line)) return true;
     for (let back = index; back > 0 && /^\s{6,}/.test(lines[back]!); back--) if (own(lines[back - 1]!)) return true;
     return false;
   });
-  return picked.length > 0 ? picked.join("\n") : HELP;
+  return picked.length > 0 ? picked.join("\n") : help;
 }
 
 main().catch(printError);

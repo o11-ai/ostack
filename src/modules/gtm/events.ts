@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { newId } from "./db.ts";
-import { OstackError } from "./errors.ts";
+import { OstackError } from "../../lib/errors.ts";
 import { getLead, suppress, type Lead } from "./leads.ts";
 
 /** Event types with built-in effects on the lead. Any other lowercase type (crm_synced, call_logged, ...) is recorded as-is. */

@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { newId } from "./db.ts";
-import { OstackError } from "./errors.ts";
+import { OstackError } from "../../lib/errors.ts";
 import { companyDomainFromEmail, normalizeDomain, normalizeEmail, normalizeLinkedin } from "./normalize.ts";
 
 export const LEAD_STATUSES = [

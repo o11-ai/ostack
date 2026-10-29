@@ -26,7 +26,10 @@ host_dir() {
 
 host_present() { [ -d "$(dirname "$(host_dir "$1")")" ]; }
 
-skills() { for dir in "$ROOT"/skills/*/; do basename "$dir"; done; }
+# Core skills live in skills/, each module's in modules/<id>/skills/. Skill names are unique across all of them.
+skill_dirs() { for dir in "$ROOT"/skills/*/ "$ROOT"/modules/*/skills/*/; do [ -f "$dir/SKILL.md" ] && echo "${dir%/}"; done; }
+skills() { for dir in $(skill_dirs); do basename "$dir"; done; }
+skill_path() { for dir in $(skill_dirs); do [ "$(basename "$dir")" = "$1" ] && echo "$dir" && return; done; }
 
 version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
 
@@ -53,7 +56,7 @@ link_host() {
       echo "  skip $target (a real folder is already there)" >&2
       continue
     fi
-    ln -sfn "$ROOT/skills/$name" "$target"
+    ln -sfn "$(skill_path "$name")" "$target"
   done
   echo "  $host: $(skills | tr '\n' ' ')-> $dir"
 }
@@ -147,7 +150,7 @@ link_cli
 cat <<EOF
 
 Next:
-  mkdir my-gtm && cd my-gtm
+  mkdir ~/ostack && cd ~/ostack
   ostack init
   then ask your agent: "set up ostack" (it interviews you and customizes everything)
 EOF
