@@ -213,6 +213,7 @@ bun run src/cli.ts help
   - Rename a step only by listing the old name in `renamed_from` in its frontmatter.
   - Bump a step's `changed` version when its default changes meaningfully, and say what changed in `change`.
 - **New setup questions** go in [`questions.md`](skills/ostack-setup/references/questions.md) with a `Since` version.
+- **Test skill changes with a real agent** in [`evals/agent-sandbox`](evals/agent-sandbox): a sandboxed mailbox, CRM, calendar and web, so a small model can run setup, outbound and follow-ups end to end while you read where it got lost.
 - **New packs** in `packs/` are very welcome. Recruiting agencies, dev tools, local services: all of it.
 
 <p align="center"><sub>MIT · built by <a href="https://o11.ai">o11</a></sub></p>
